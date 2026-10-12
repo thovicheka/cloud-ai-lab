@@ -1,0 +1,41 @@
+# Decisions
+
+Why each tool was picked, and what it was picked over. Updated as the build goes.
+
+## Always-on server: Hetzner
+- **Why a server at all:** an AI chat tab or a laptop terminal only runs while it's open. GPU jobs survive a closed laptop, but the layer that queues, watches, and coordinates them doesn't, unless it lives on a machine that's always on.
+- **Why Hetzner:** roughly half the price of DigitalOcean for the same specs.
+- **Trade-off:** strict signup checks. New accounts outside Europe may need prepaid credit (it pays your first bills). DigitalOcean, Vultr, or Akamai work as drop-in replacements; every command after server creation is the same.
+- **Region:** Singapore, the closest Hetzner region to Southeast Asia. A European region adds noticeable lag to every keystroke in a remote IDE.
+- **Size:** 2 vCPU / 4 GB. Agents call model APIs; the "thinking" happens on the provider's servers, so the box mostly waits on the network.
+
+## Secure access: Tailscale
+- Private network between your own devices; the server is never exposed to the public internet once the firewall is on.
+- Free for personal use and simpler than running a VPN yourself.
+
+## Code: GitHub
+- Agents push to branches, never `main`. A human reviews and merges.
+- Public repo with secret scanning and push protection on.
+
+## Big-file storage: Cloudflare R2 (over AWS S3)
+- Same S3-compatible API, much cheaper storage, and no fee for downloading your own data.
+
+## GPU compute: Modal + RunPod (over Vast.ai)
+- **Modal** for batch jobs: billed per second, starts and stops on its own.
+- **RunPod** for interactive sessions when you need a GPU box to poke at.
+- **Vast.ai rejected:** cheapest, but instances can be interrupted, which is painful for long training runs.
+
+## Experiment tracking: Weights & Biases (over self-hosted MLflow)
+- Hosted, free tier, nothing to run on the small server.
+- Logs images and audio per run, which matters for speech and image projects.
+
+## Job queue: Prefect
+- Gives jobs explicit states (queued, running, completed, failed), retries, and a UI, without a heavy setup.
+
+## Agents: start with two
+- A coordinator and a coding agent first; add more later. An agent is "a job description plus tools," so roles are cheap to add or change.
+- Prompts are not enforcement. What an agent can do is decided by which tools and credentials it's given.
+- Set a monthly spending limit on any model API key before letting agents loop on their own.
+
+## Notifications: Telegram bot
+- Free, works on any phone, easy to build. Serves as a running record of what started, finished, and failed.
