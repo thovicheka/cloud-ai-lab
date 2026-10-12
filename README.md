@@ -57,6 +57,7 @@ Design rules:
 | 6. Agents | coming |
 | 7. Notifications | coming |
 | Why each tool was chosen | [docs/decisions.md](docs/decisions.md) |
+| How these docs are written | [docs/STYLE.md](docs/STYLE.md) |
 
 ---
 
