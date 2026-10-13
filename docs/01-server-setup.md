@@ -2,7 +2,7 @@
 
 **What you'll have working by the end:** an always-on cloud server that only your own devices can reach, where code, agents, and long jobs keep running after you close your laptop.
 
-**Status:** Parts A–D done · E1 (R2 storage) done · E2 ("close the laptop" test) next.
+**Status:** ✅ Stage 1 complete (Parts A–E).
 
 **How to read this guide:** instructions use placeholders like `<username>`; replace them with your own values. After key steps, an **Example from this build** block shows the real commands and output from the author's setup:
 
@@ -580,14 +580,47 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
 
   > **Use `rclone copy`, not `rclone sync`,** unless you're sure. `sync` makes the destination an exact mirror of the source, which **deletes** files in the destination that aren't in the source.
 
-- [ ] **E2. The "close the laptop" test.**
+- [x] **E2. The "close the laptop" test.**
+
+  Proves the main goal: **a job keeps running on the server while your laptop is off.** `tmux` is a terminal that lives on the server, so programs inside it survive disconnects.
+
+  | tmux action | Command |
+  |---|---|
+  | Start a named session | `tmux new -s <name>` |
+  | Detach (leave it running) | **Ctrl+B**, release, then **D** |
+  | List sessions | `tmux ls` |
+  | Reattach | `tmux attach -t <name>` |
+  | End a session | `exit` (inside it) |
+
   ```bash
-  tmux new -s test
-  python3 -c "import time; [print(i, flush=True) or time.sleep(60) for i in range(600)]"
-  # detach: Ctrl+B then D. Close the laptop. Later:
   ssh lab
-  tmux attach -t test
+  tmux new -s test                                   # terminal that lives on the server
+  # a stand-in for a long training job: one line per minute, also saved to a log
+  for i in $(seq 1 600); do echo "$i  $(date '+%H:%M:%S')"; sleep 60; done | tee ~/counter.log
   ```
+  Detach (**Ctrl+B, D**), close the laptop for 5–10 minutes, then:
+  ```bash
+  ssh lab
+  tmux attach -t test                                # back where you left it
+  ```
+  ✅ The counter kept going with no gaps. Stop it with **Ctrl+C**, then `exit`.
+
+  > **Habit:** start anything longer than a few minutes inside tmux. Without tmux, a program started over SSH dies when the connection drops. PyCharm's terminal isn't reliable for this either, so run `tmux` inside it for long jobs.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~$ for i in $(seq 1 600); do echo "$i  $(date '+%H:%M:%S')"; sleep 60; done | tee ~/counter.log
+  1  13:06:29
+  2  13:07:29
+  3  13:08:29          # detached and disconnected around here
+  4  13:09:29
+  5  13:10:29
+  6  13:11:29          # reconnected: ssh lab → tmux attach -t test
+  7  13:12:29
+  8  13:13:29          # ✅ one line per minute, no gaps
+  ```
+  </details>
 
 ## Verify it worked
 - `ssh lab` from the laptop logs in with no password prompt.

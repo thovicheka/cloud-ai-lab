@@ -4,7 +4,7 @@ A self-hosted cloud lab for ML and data science: always-on server, AI agents, on
 
 Your laptop becomes just a window. Code, data, agents, and training jobs live in the cloud, so work keeps running when the laptop is closed, and you can check in from any device.
 
-> **Status:** being built in public. Stage 1: server locked down (Tailscale-only access, key-only SSH, firewall), dev tools installed, PyCharm connected, R2 storage connected; final "close the laptop" test next. Docs are written as each stage is completed, including the mistakes along the way.
+> **Status:** being built in public. ✅ Stage 1 complete: locked-down always-on server (Tailscale-only, key-only SSH, firewall), dev tools, PyCharm remote, R2 storage, and jobs that survive a closed laptop. Next: GPU compute. Docs are written as each stage is completed, including the mistakes along the way.
 
 ---
 
@@ -49,8 +49,7 @@ Design rules:
 
 | Stage | Doc |
 |---|---|
-| 1. Server, access, dev tools | [docs/01-server-setup.md](docs/01-server-setup.md) |
-| 2. Storage (R2) | coming |
+| 1. Server, access, dev tools, storage ✅ | [docs/01-server-setup.md](docs/01-server-setup.md) |
 | 3. GPU compute | coming |
 | 4. Experiment tracking | coming |
 | 5. Job queue | coming |
