@@ -36,7 +36,7 @@ This file is read automatically by Claude Code at the start of every session. Fo
 1. Read the task in `docs/ROADMAP.md`: its goal, which steps are 🧑 (human) vs 🤖 (you), and its "done when."
 2. If a 🧑 step isn't done yet (an account, key, or `sudo` command), stop and ask for it.
 3. Create the branch, do the 🤖 steps, test what you can without spending money.
-4. Update docs as you go, following `docs/STYLE.md` (placeholders in instructions, a real "Example from this build" block, troubleshooting notes for any error you hit).
+4. Update docs as you go, following `docs/STYLE.md`. **For every step, record the command, its real output, the result (✅/❌), and for failures the error, cause, and fix**, in an "Example from this build" block. Mask secrets, IPs, and emails.
 5. Finish with a short report: what changed, how you tested it, what the human must do next (commands to run, keys to add), and any open questions. Then ask to commit.
 
 ## Conventions

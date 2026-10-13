@@ -78,6 +78,12 @@ Expected: `<output>`
   (real commands and output, in a console code block)
   </details>
   ```
+- **Every step records its outcome.** Each example block shows, in order:
+  1. the **command** that was run,
+  2. its **real output** (trimmed with `...` if long),
+  3. **Result:** ✅ success or ❌ failure,
+  4. if it failed: the **error**, its **cause**, and the **fix** that worked, followed by the successful re-run.
+  Failed attempts stay in the docs; they're the most useful part for the next reader.
 - **Comment commands inline** (`# what this line does`) when the purpose isn't obvious.
 - **Never** show real secrets, IP addresses, emails, or endpoints, even in examples. Mask them: `ANTHROPIC_API_KEY=sk-ant-***`, `<server-ip>`.
 - Secrets live in `.env` (git-ignored) on the server only.

@@ -69,6 +69,26 @@ Tip: keep one terminal tab for the laptop and one for the server.
 
   > **If you see** `<path> already exists. Overwrite (y/n)?` on a second run, answer `n`. You already have the key; the `-C` text is only a label.
 
+  <details><summary>Example from this build</summary>
+
+  ```console
+  you@laptop ~ % ssh-keygen -t ed25519 -C "<label>" -f ~/.ssh/id_ed25519_lab
+  /Users/you/.ssh/id_ed25519_lab already exists.
+  Overwrite (y/n)? y                      # ⚠️ a key from an earlier attempt was overwritten
+  Your identification has been saved in /Users/you/.ssh/id_ed25519_lab
+  Your public key has been saved in /Users/you/.ssh/id_ed25519_lab.pub
+
+  you@laptop ~ % ssh -T git@github-lab
+  Enter passphrase for key '/Users/you/.ssh/id_ed25519_lab':
+  Hi thovicheka! You've successfully authenticated, but GitHub does not provide shell access.
+
+  you@laptop ~ % ssh-add --apple-use-keychain ~/.ssh/id_ed25519_lab
+  Identity added: /Users/you/.ssh/id_ed25519_lab (<label>)
+  ```
+  **Result:** ✅ GitHub greets the new account.
+  **Problems hit:** answered `y` to "Overwrite?" on a second run (harmless here, but anything using the old key would have needed the new one). Ran `ssh-keygen` again by mistake → answered `n` the second time.
+  </details>
+
 - [x] **A5. Point the repo at the new account and set your identity** *(inside the repo folder on your laptop)*.
   ```bash
   git config user.name "<Your Name>"
@@ -78,6 +98,24 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ```
   *What it does:* the name/email is stamped on every commit in this repo. The remote URL decides which key, and so which account, pushes.
   Optional privacy: GitHub → Settings → Emails → "Keep my email addresses private," then use the `...@users.noreply.github.com` address above.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  you@laptop cloud-ai-lab % git remote set-url origin git@github-lab:thovicheka/cloud-ai-lab.git
+  you@laptop cloud-ai-lab % git remote -v
+  origin  git@github-lab:thovicheka/cloud-ai-lab.git (fetch)
+  origin  git@github-lab:thovicheka/cloud-ai-lab.git (push)
+  you@laptop cloud-ai-lab % git config user.name "Tho Vicheka"
+  you@laptop cloud-ai-lab % git commit --allow-empty -m "Test push from new account"
+  [main dbb98e1] Test push from new account
+  you@laptop cloud-ai-lab % git push
+  To github-lab:thovicheka/cloud-ai-lab.git
+     0a0ec48..dbb98e1  main -> main
+  ```
+  **Result:** ✅ the push lands under the new account.
+  **Problem hit:** `git config user.name "YOUR REAL NAME"` was pasted literally. Fix: run it again with the real name, check with `git config user.name`.
+  </details>
 
 ---
 
@@ -112,6 +150,30 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ```
   *What it does:* adds your public key to the server's allowed list. From now on the laptop logs in with the key.
 
+  <details><summary>Example from this build (key wasn't attached at creation)</summary>
+
+  ```console
+  # First login: Hetzner forced a root password change and the connection dropped
+  you@laptop ~ % ssh root@<server-ip>
+  Changing password for root.
+  Current password:
+  Connection to <server-ip> closed.                 # ❌ needed the EMAILED password here
+
+  # Second try: emailed password twice, then a new one → logged in as root
+
+  # Installing the key: the key file didn't exist yet
+  you@laptop ~ % ssh-copy-id -i ~/.ssh/id_ed25519_hetzner.pub root@<server-ip>
+  ERROR: failed to open ID file '/Users/you/.ssh/id_ed25519_hetzner.pub': No such file or directory
+  # Fix: ran B2 (ssh-keygen ... -f ~/.ssh/id_ed25519_hetzner), then again:
+  you@laptop ~ % ssh-copy-id -i ~/.ssh/id_ed25519_hetzner.pub root@<server-ip>
+  root@<server-ip>'s password:
+  Permission denied, please try again.               # typo in the password
+  root@<server-ip>'s password:
+  Number of key(s) added:        1                   # ✅
+  ```
+  **Result:** ✅ `ssh -i ~/.ssh/id_ed25519_hetzner root@<server-ip>` logs in with no server password.
+  </details>
+
 ---
 
 ## Part C — Lock the server down
@@ -122,6 +184,18 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ```
   *What it does:* installs security fixes. Takes 1–3 minutes. If a purple screen asks which services to restart, press Enter. "0 upgraded" just means it was already current.
 
+  <details><summary>Example from this build</summary>
+
+  ```console
+  root@ubuntu-4gb-sin-2:~# apt update && apt upgrade -y
+  Fetched 9,153 kB in 1s (9,247 kB/s)
+  All packages are up to date.
+  Calculating upgrade... Done
+  0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+  ```
+  **Result:** ✅ (already current: an earlier run had upgraded everything).
+  </details>
+
 - [x] **C2. Create your own user with admin rights** *(on the server, as root)*.
   ```bash
   adduser <username>
@@ -130,6 +204,24 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ```
   *What it does:* working as `root` is risky because it can do anything without confirmation. Your own user does admin tasks with `sudo`. `rsync` copies your SSH key to the new user.
   `adduser` asks for a password (save it; `sudo` needs it), then Full Name / Room / Phone: press Enter through them and answer `Y`. No output from the last two commands means success.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  root@ubuntu-4gb-sin-2:~# adduser thovicheka
+  New password:
+  Retype new password:
+  passwd: password updated successfully
+  Changing the user information for thovicheka
+  Enter the new value, or press ENTER for the default
+  	Full Name []:                                 # Enter ×5, then Y
+  info: Adding user `thovicheka' to group `users' ...
+  root@ubuntu-4gb-sin-2:~# usermod -aG sudo thovicheka
+  root@ubuntu-4gb-sin-2:~# rsync --archive --chown=thovicheka:thovicheka ~/.ssh /home/thovicheka
+  root@ubuntu-4gb-sin-2:~#                          # ✅ no output = success
+  ```
+  **Result:** ✅
+  </details>
 
 - [x] **C3. Install Tailscale on the server *and* the laptop, on the same account.**
   On the server, run **one line at a time**:
@@ -149,6 +241,32 @@ Tip: keep one terminal tab for the laptop and one for the server.
   > **If the laptop app hangs at "Authentication in progress"**, turn off any other VPN. macOS runs only one VPN at a time. Also check System Settings → General → Login Items & Extensions → Network Extensions → Tailscale is on.
   >
   > **If the laptop app shows an old account**, it belongs to a different tailnet. Use **Add Account…** (not "Alternate Server") and log in with the account the server used.
+
+  <details><summary>Example from this build (several problems, all fixed)</summary>
+
+  ```console
+  # 1. Two lines pasted as one
+  root@ubuntu-4gb-sin-2:~# curl -fsSL https://tailscale.com/install.sh | shtailscale up --hostname=lab
+  shtailscale: command not found
+  curl: (23) Failure writing output to destination
+  # Fix: ran the two commands separately
+  root@ubuntu-4gb-sin-2:~# curl -fsSL https://tailscale.com/install.sh | sh
+  Installation complete! Log in to start using Tailscale by running:
+  tailscale up
+  root@ubuntu-4gb-sin-2:~# tailscale up --hostname=lab
+  To authenticate, visit: https://login.tailscale.com/a/...   # opened on the laptop, approved
+
+  # 2. Laptop couldn't find the server
+  you@laptop ~ % ssh -i ~/.ssh/id_ed25519_hetzner thovicheka@lab
+  ssh: Could not resolve hostname lab: nodename nor servname provided, or not known
+  # Cause: Tailscale wasn't installed on the laptop at all → installed the Mac app
+
+  # 3. Mac app stuck at "Authentication in progress"; `Tailscale login` from the terminal hung too
+  # Causes: (a) another VPN was running, (b) the app was logged into an OLD account (different tailnet)
+  # Fix: turned the other VPN off, used "Add Account…" with the same account as the server
+  ```
+  **Result:** ✅ after the fixes, C4 worked.
+  </details>
 
 - [x] **C4. Test the private route** *(on the laptop, new tab; keep the server tab open)*.
   ```bash
@@ -282,11 +400,37 @@ Tip: keep one terminal tab for the laptop and one for the server.
   *What it does:* now plain `ssh lab` works.
   Why the name `lab`: name machines by role, not by project. One server will host several projects.
 
+  <details><summary>Example from this build</summary>
+
+  ```console
+  you@laptop ~ % ssh lab
+  Welcome to Ubuntu 24.04.5 LTS (GNU/Linux 6.8.0-138-generic x86_64)
+  ...
+  thovicheka@ubuntu-4gb-sin-2:~$                    # ✅ no flags, no IP
+  ```
+  Save the key passphrase so `ssh lab` doesn't ask each time *(on the laptop)*: `ssh-add --apple-use-keychain ~/.ssh/id_ed25519_hetzner`.
+  **Problem hit:** that `ssh-add` command was first run **on the server** → `Could not open a connection to your authentication agent.` Fix: `exit` back to the laptop (prompt shows the laptop's name) and run it there.
+  </details>
+
 - [x] **C8. Reboot once** *(on the server)* if the login message says `*** System restart required ***`:
   ```bash
   sudo reboot
   ```
   Wait a minute, then `ssh lab`. ✅ The restart message is gone, and logging in still works, which proves Tailscale and the firewall come back on their own after a reboot.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~$ sudo reboot
+  Connection to lab closed by remote host.          # expected
+  # ~1 minute later
+  you@laptop ~ % ssh lab
+  Welcome to Ubuntu 24.04.5 LTS (GNU/Linux 6.8.0-146-generic x86_64)   # kernel updated
+  ...
+  thovicheka@ubuntu-4gb-sin-2:~$                    # ✅ no "System restart required"
+  ```
+  **Result:** ✅
+  </details>
 
 ---
 
