@@ -164,8 +164,15 @@ def train(
 
 @app.local_entrypoint()
 def main(run_name: str, steps: int = 3000, ckpt_every: int = 500, crash_at_step: int = 0):
-    result = train.remote(
-        run_name=run_name, steps=steps, ckpt_every=ckpt_every, crash_at_step=crash_at_step
-    )
+    from lab.notify import notify_job  # here, not at the top: containers don't need it
+
+    with notify_job(f"train {PROJECT} {run_name}", gpu=GPU) as job:
+        result = train.remote(
+            run_name=run_name, steps=steps, ckpt_every=ckpt_every, crash_at_step=crash_at_step
+        )
+        job.note = (
+            f"steps {result['resumed_from']}→{result['resumed_from'] + result['steps_this_run']}"
+            f", best test loss {result['best_test_loss']}\n{result['checkpoints']}"
+        )
     for key, value in result.items():
         print(f"{key:>15}: {value}")

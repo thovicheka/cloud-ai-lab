@@ -4,7 +4,32 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
-*(Written when all given tasks are done or blocked: what finished, what's blocked, and what the human must do, in order.)*
+**Run of 2026-10-13: tasks 2.2, 2.3, 2.4, 6.2.** All agent work is finished. Each task is blocked only on a human step: Modal account (2.1), the R2 secret, a Telegram bot (6.1), and running the paid jobs. No money was spent and no Modal job was run.
+
+**Branches are stacked; review and merge in this order:** `task/2.2-hello-gpu` → `task/2.3-modal-r2` → `task/2.4-train-template` → `task/6.2-notifier`. Each builds on the one before (shared `pyproject.toml`, `lab/`, this file).
+
+| Task | Agent work | Tested | Blocked on |
+|---|---|---|---|
+| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | loads ✅ | 2.1, a GPU run |
+| 2.3 R2 from Modal | `lab/storage.py`, `jobs/r2_hello.py`, `.env.example` | 10 tests vs fake S3 ✅ | 2.1, `r2` secret, a CPU run |
+| 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | checkpoint logic: 6 tests ✅; training loop: not run (no local training) | 2.1, `r2` secret, 2 GPU runs |
+| 6.2 Notifier | `lab/notify.py`, wired into all jobs | 16 tests vs fake Telegram ✅; self-test unconfigured ✅ | 6.1 |
+
+**What the human does, in order** (details under each task below; run everything on the server from `~/projects/cloud-ai-lab`):
+1. **2.1:** sign up at modal.com, **set a monthly spending limit**, then `uv tool install modal` and `modal token new`.
+2. **R2 + Telegram keys:** `cp .env.example .env && chmod 600 .env`, then fill in the R2 values (same as the rclone `r2` remote) and, after 6.1, the bot token and chat ID.
+3. **Modal secret:** `grep '^R2_' .env > ~/r2.env && modal secret create r2 --from-dotenv ~/r2.env; rm ~/r2.env`
+4. **Free:** `uv run python -m lab.notify --test` → 4 Telegram messages (needs 6.1).
+5. **Paid, about $0.10 total** (T4 at $0.000164/s):
+   - `modal run jobs/hello_gpu.py`: < $0.05
+   - `modal run jobs/r2_hello.py`: < $0.01
+   - `modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100`, then the same without `--crash-at-step`: ~$0.05 for both; the second must print `resumed ... at step 1000`.
+6. Review and merge the four branches in order; tick 2.2–2.4 and 6.2 in ROADMAP once the runs pass.
+
+**Noticed, not done (out of scope):**
+- The training loop has never executed. Expect possible small fixes after the first GPU run. If you'd rather catch them for ~$0.001, you could approve a CPU-only Modal smoke run (`gpu=None`, a few steps).
+- The README's Stage 2 and Stage 6 rows still say "coming"; that's for 2.5 / 6.3.
+- `.claude/settings.json` denies `modal run`, but not `uv run modal run`. Add `Bash(uv run modal run:*)` if you want the same guard on that form.
 
 ---
 
@@ -245,4 +270,66 @@ All checks passed!
 - `--run-name` has no default on purpose: rerunning with the same name resumes, and a new name starts fresh. A finished run rerun with its name does nothing and returns its result.
 
 **5. GPU run and resume test:** not done. Needs 2.1, the `r2` secret, and the human.
+</details>
+
+## 6.2 — Notifier
+- **Branch:** `task/6.2-notifier` (built on `task/2.4-train-template`; merge 2.2 → 2.3 → 2.4 → 6.2)
+- **State:** blocked: code written and tested with a fake Telegram API; real messages need 6.1
+- **Done:** `lab/notify.py`: `notify(text)` sends to Telegram, and the `notify_job(name, gpu=...)` context manager sends ▶️ Started / ✅ Finished / ❌ Failed / ⏹️ Stopped with duration and estimated GPU cost. It never raises: unconfigured or unreachable Telegram prints a warning and the job carries on. Errors never print the token. Standard library only. All three jobs (`hello_gpu`, `r2_hello`, `train_template`) wrap their remote call with it in the local entrypoint, which runs on the server, so Modal needs no Telegram secret. 16 new tests (32 total). Telegram keys added to `.env.example`.
+- **Next:** the human sets up the bot (6.1) and runs the free self-test.
+- **Human must:**
+  1. Finish **6.1**: create a bot with @BotFather (`/newbot`), then send your bot any message (bots can't message you first). Get your chat ID from @userinfobot. Add both to `.env` (keys in `.env.example`).
+  2. Free test, no GPU or Modal (runs a fake job that finishes and one that fails):
+     ```bash
+     uv run python -m lab.notify --test
+     ```
+     **Cost:** $0. **Expected:** four Telegram messages: Started, Finished, Started, Failed.
+  3. Optional real-job check (after 2.1 + 2.3): `modal run jobs/train_template.py --run-name notify-1 --crash-at-step 600`, then the same command without the flag. Expect Started → Failed, then Started → Finished. **Estimated cost: ~$0.05.**
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Check whether 6.1 is done**
+```console
+$ test -f .env && echo ".env exists" || echo "no .env"
+no .env
+```
+**Result:** ❌ No bot token yet. The notifier was written and tested with Telegram's API faked.
+
+**2. Tests (fake Telegram, nothing sent)**
+```console
+$ uv run pytest -q
+................................                                         [100%]
+32 passed in 3.95s
+```
+**Result:** ✅ Covers: the request sent, truncation to 4096 chars, no config, HTTP 401 / non-JSON 502 / DNS failure / timeout (none raise, none print the token), cost and duration formatting, finished / failed (re-raises) / Ctrl-C messages, the job still runs when Telegram is down, the `--test` self-test sends all three kinds, `.env` parsing.
+
+**3. First version used `python-dotenv`**
+**Result:** ❌ (caught by reading, before any run)
+- **Error (would have been):** `ModuleNotFoundError: No module named 'dotenv'` on every `modal run`.
+- **Cause:** ROADMAP 2.1 installs the CLI with `uv tool install modal`, which runs the local entrypoint in the tool's own environment, without the project's packages.
+- **Fix:** removed `python-dotenv`; a 15-line standard-library `.env` reader instead. Checked under bare system Python:
+```console
+$ python3 -I -c "import sys; sys.path.insert(0, '.'); from lab.notify import notify_job; print('lab.notify imports under bare system python', sys.version.split()[0])"
+lab.notify imports under bare system python 3.12.3
+```
+**Result:** ✅
+
+**4. Self-test with no Telegram config** (real run; shows the graceful fallback)
+```console
+$ uv run python -m lab.notify --test
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ▶️ Started: notify test: a job that finishes (T4)
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ✅ Finished: notify test: a job that finishes in 0m 01s, ~$0.00 on T4
+this is the note line
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ▶️ Started: notify test: a job that fails (T4)
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ❌ Failed: notify test: a job that fails after 0m 01s, ~$0.00 on T4
+RuntimeError: simulated failure (this is expected)
+$ echo $?
+0
+```
+**Result:** ✅ The job flow completes, and the messages print instead of being sent.
+
+**5. Known limits**
+- Duration is measured on the server and includes container start-up, so the cost slightly overestimates GPU time. CPU and memory charges (a few %) aren't counted.
+- Untested until a real run: whether `modal run` delivers Ctrl-C to the entrypoint as `KeyboardInterrupt` (→ ⏹️ Stopped), or cancels it some other way (then no stop message).
+- With `modal run --detach`, if the server-side client exits, the job keeps going but no Finished message arrives. Stage 4 (Prefect) is the place to fix that.
 </details>

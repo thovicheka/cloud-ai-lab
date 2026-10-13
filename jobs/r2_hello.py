@@ -41,5 +41,10 @@ def write_hello() -> list[str]:
 
 @app.local_entrypoint()
 def main():
-    for key in write_hello.remote():
+    from lab.notify import notify_job  # here, not at the top: containers don't need it
+
+    with notify_job("r2-hello") as job:
+        keys = write_hello.remote()
+        job.note = "\n".join(keys)
+    for key in keys:
         print("in R2:", key)
