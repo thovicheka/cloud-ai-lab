@@ -4,7 +4,32 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
-*(Written when all given tasks are done or blocked: what finished, what's blocked, and what the human must do, in order.)*
+**Run of 2026-10-13: tasks 2.2, 2.3, 2.4, 6.2.** All agent work is finished. Each task is blocked only on a human step: Modal account (2.1), the R2 secret, a Telegram bot (6.1), and running the paid jobs. No money was spent and no Modal job was run.
+
+**Branches are stacked; review and merge in this order:** `task/2.2-hello-gpu` → `task/2.3-modal-r2` → `task/2.4-train-template` → `task/6.2-notifier`. Each builds on the one before (shared `pyproject.toml`, `lab/`, this file).
+
+| Task | Agent work | Tested | Blocked on |
+|---|---|---|---|
+| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | loads ✅ | 2.1, a GPU run |
+| 2.3 R2 from Modal | `lab/storage.py`, `jobs/r2_hello.py`, `.env.example` | 10 tests vs fake S3 ✅ | 2.1, `r2` secret, a CPU run |
+| 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | checkpoint logic: 6 tests ✅; training loop: not run (no local training) | 2.1, `r2` secret, 2 GPU runs |
+| 6.2 Notifier | `lab/notify.py`, wired into all jobs | 16 tests vs fake Telegram ✅; self-test unconfigured ✅ | 6.1 |
+
+**What the human does, in order** (details under each task below; run everything on the server from `~/projects/cloud-ai-lab`):
+1. **2.1:** sign up at modal.com, **set a monthly spending limit**, then `uv tool install modal` and `modal token new`.
+2. **R2 + Telegram keys:** `cp .env.example .env && chmod 600 .env`, then fill in the R2 values (same as the rclone `r2` remote) and, after 6.1, the bot token and chat ID.
+3. **Modal secret:** `grep '^R2_' .env > ~/r2.env && modal secret create r2 --from-dotenv ~/r2.env; rm ~/r2.env`
+4. **Free:** `uv run python -m lab.notify --test` → 4 Telegram messages (needs 6.1).
+5. **Paid, about $0.10 total** (T4 at $0.000164/s):
+   - `modal run jobs/hello_gpu.py`: < $0.05
+   - `modal run jobs/r2_hello.py`: < $0.01
+   - `modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100`, then the same without `--crash-at-step`: ~$0.05 for both; the second must print `resumed ... at step 1000`.
+6. Review and merge the four branches in order; tick 2.2–2.4 and 6.2 in ROADMAP once the runs pass.
+
+**Noticed, not done (out of scope):**
+- The training loop has never executed. Expect possible small fixes after the first GPU run. If you'd rather catch them for ~$0.001, you could approve a CPU-only Modal smoke run (`gpu=None`, a few steps).
+- The README's Stage 2 and Stage 6 rows still say "coming"; that's for 2.5 / 6.3.
+- `.claude/settings.json` denies `modal run`, but not `uv run modal run`. Add `Bash(uv run modal run:*)` if you want the same guard on that form.
 
 ---
 
