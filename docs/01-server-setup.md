@@ -4,7 +4,17 @@
 
 **Status:** Parts A–D done · E1 (R2 storage) done · E2 ("close the laptop" test) next.
 
-Placeholders: `<server-ip>`, `<username>`, `<github-username>`, `<email>`.
+**How to read this guide:** instructions use placeholders like `<username>`; replace them with your own values. After key steps, an **Example from this build** block shows the real commands and output from the author's setup:
+
+| Placeholder | In this build |
+|---|---|
+| `<username>` (server user) | `thovicheka` |
+| `<github-username>` | `thovicheka` |
+| `<server-name>` (Hetzner) | `ubuntu-4gb-sin-2` |
+| Tailscale name | `lab` |
+| `<bucket-name>` | `cloud-ai-lab` |
+| `<image>` (test file) | `Natalia.jpg` |
+| `<server-ip>`, `<email>`, keys, endpoints | kept private |
 
 ## Prerequisites
 - A laptop with a terminal (macOS or Linux; Windows works with WSL).
@@ -145,6 +155,17 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ssh -i ~/.ssh/id_ed25519_hetzner <username>@lab
   ```
   ✅ You land at `<username>@<server-name>:~$`. Don't continue until this works, or the next steps can lock you out.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  you@laptop ~ % ssh -i ~/.ssh/id_ed25519_hetzner thovicheka@lab
+  Enter passphrase for key '/Users/you/.ssh/id_ed25519_hetzner':     # laptop key passphrase
+  Welcome to Ubuntu 24.04.5 LTS (GNU/Linux 6.8.0-138-generic x86_64)
+  ...
+  thovicheka@ubuntu-4gb-sin-2:~$                                     # ✅ on the server, through Tailscale
+  ```
+  </details>
   Save the key passphrase so you aren't asked each time *(on the laptop)*:
   ```bash
   ssh-add --apple-use-keychain ~/.ssh/id_ed25519_hetzner
@@ -174,6 +195,23 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ```
   ✅ Expected: `Permission denied (publickey)`. If it asks for a password, the rule isn't active.
 
+  <details><summary>Example from this build (including the cloud-init problem)</summary>
+
+  ```console
+  # First attempt wrote 99-hardening.conf, but passwords still worked:
+  you@laptop ~ % ssh -o PubkeyAuthentication=no thovicheka@lab
+  thovicheka@lab's password:                       # ❌ should have been refused
+
+  # On the server: Hetzner's own file was being read first
+  thovicheka@ubuntu-4gb-sin-2:~$ ls /etc/ssh/sshd_config.d/
+  00-hardening.conf  50-cloud-init.conf            # after recreating ours as 00-
+  thovicheka@ubuntu-4gb-sin-2:~$ sudo systemctl restart ssh
+  thovicheka@ubuntu-4gb-sin-2:~$ sudo sshd -T | grep -Ei 'passwordauthentication|permitrootlogin'
+  permitrootlogin no
+  passwordauthentication no                        # ✅ our rules win
+  ```
+  </details>
+
 - [x] **C6. Close the public door with a firewall** *(on the server)*.
   ```bash
   sudo ufw allow in on tailscale0
@@ -197,6 +235,27 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ssh -i ~/.ssh/id_ed25519_hetzner <username>@lab                              # ✅ still logs in
   ssh -i ~/.ssh/id_ed25519_hetzner -o ConnectTimeout=10 <username>@<server-ip>  # ✅ Operation timed out
   ```
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~$ sudo ufw enable
+  Command may disrupt existing ssh connections. Proceed with operation (y|n)? y
+  Firewall is active and enabled on system startup
+  thovicheka@ubuntu-4gb-sin-2:~$ sudo ufw status
+  Status: active
+
+  To                          Action      From
+  --                          ------      ----
+  Anywhere on tailscale0      ALLOW       Anywhere
+  Anywhere (v6) on tailscale0 ALLOW       Anywhere (v6)
+
+  # From the laptop, trying the PUBLIC address:
+  you@laptop ~ % ssh -i ~/.ssh/id_ed25519_hetzner -o ConnectTimeout=10 thovicheka@<server-ip>
+  ssh: connect to host <server-ip> port 22: Operation timed out   # ✅ internet can't reach it
+  ```
+  Mistake made here: the first "public IP" test was run **on the server** by accident. It returned `Permission denied (publickey)`, which proves passwords are off but says nothing about the firewall. Re-run from the laptop.
+  </details>
 
   > **Emergency access:** if Tailscale ever breaks, the provider's web console (Hetzner: server → **Console**) still opens a screen on the server, bypassing the firewall. Log in with your user's password.
   >
@@ -252,6 +311,14 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
   ```
   ✅ Expected: `uv 0.x.x`.
 
+  <details><summary>Example from this build</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~$ uv --version
+  uv 0.13.0 (x86_64-unknown-linux-gnu)
+  ```
+  </details>
+
   > **If you see** `WARNING: terminal is not fully functional` (e.g. from `git log`), your laptop's terminal reports a type the server doesn't know. Fix once:
   > ```bash
   > echo 'export TERM=xterm-256color' >> ~/.bashrc
@@ -277,6 +344,17 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
 
   *What it does:* lets the server (and agents on it) pull and push code. The server only uses one account, so no alias is needed here.
 
+  <details><summary>Example from this build</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~$ ssh -T git@github.com
+  The authenticity of host 'github.com (140.82.121.4)' can't be established.
+  ED25519 key fingerprint is SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU.   # matches GitHub's official one
+  Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+  Hi thovicheka! You've successfully authenticated, but GitHub does not provide shell access.
+  ```
+  </details>
+
   > **Trade-off:** an account-level key can reach every repo on the account. If that's too broad later, use per-repo **deploy keys** instead.
 
 - [x] **D3. Set the commit identity and clone the repo.**
@@ -292,6 +370,19 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
   git log --oneline -3
   ```
   *What it does:* `~/projects` holds every repo you'll work on. The server copy becomes the **real working copy**; the laptop copy is only a backup. Run `git pull` on the laptop copy before editing it.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~/projects$ git clone git@github.com:thovicheka/cloud-ai-lab.git
+  Cloning into 'cloud-ai-lab'...
+  Receiving objects: 100% (27/27), 18.83 KiB | 6.28 MiB/s, done.
+  thovicheka@ubuntu-4gb-sin-2:~/projects$ cd cloud-ai-lab
+  thovicheka@ubuntu-4gb-sin-2:~/projects/cloud-ai-lab$ git log --oneline -3
+  47e7965 (HEAD -> main, origin/main) Complete Part C: server lockdown
+  ...
+  ```
+  </details>
 
 - [x] **D4. Connect PyCharm** *(on the laptop)*.
 
@@ -316,6 +407,19 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
   ```
   *What it does:* uses 4 GB of disk as emergency memory, so the server slows down instead of crashing when the IDE, agents, and jobs run together. The `fstab` line keeps it on after reboots. ✅ `free -h` shows `Swap: 4.0Gi`.
   Read the **available** column, not **free**: Linux fills spare memory with cache and hands it back when needed.
+
+  <details><summary>Example from this build (CPX22, with PyCharm connected)</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~$ free -h          # before
+                 total        used        free      shared  buff/cache   available
+  Mem:           3.7Gi       1.3Gi       194Mi       4.8Mi       2.5Gi       2.4Gi
+  Swap:             0B          0B          0B
+  thovicheka@ubuntu-4gb-sin-2:~$ free -h          # after D5
+  Mem:           3.7Gi       1.3Gi       205Mi       4.8Mi       2.5Gi       2.4Gi
+  Swap:          4.0Gi          0B       4.0Gi     # ✅
+  ```
+  </details>
 
 ---
 
@@ -357,11 +461,28 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
 
   **E1d. Install a current rclone** *(on the server)*. rclone is `cp` for cloud storage.
   ```bash
-  curl https://rclone.org/install.sh | sudo bash
-  rclone version
+  curl https://rclone.org/install.sh | sudo bash   # official installer, latest version
+  rclone version                                   # confirm (v1.7x or newer)
   ```
 
   > **Don't use `apt install rclone`** on Ubuntu 24.04. It's an old (2022) version, and uploads to R2 failed with `NotImplemented: Not Implemented (status code: 501)` before succeeding on retry. If you already installed it: `sudo apt remove -y rclone`, then run the install script above. Your saved config is kept.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  # With apt's old rclone:
+  thovicheka@ubuntu-4gb-sin-2:~$ rclone copy test.txt r2:cloud-ai-lab/test/
+  ERROR : test.txt: Failed to copy: NotImplemented: Not Implemented
+          status code: 501
+  ERROR : Attempt 1/3 failed with 1 errors and: NotImplemented: Not Implemented
+  ERROR : Attempt 2/3 succeeded                    # ⚠️ worked, but only on retry
+
+  # After installing the current version:
+  thovicheka@ubuntu-4gb-sin-2:~$ rclone version
+  rclone v1.75.2
+  - os/version: ubuntu 24.04 (64 bit)
+  ```
+  </details>
 
   **E1e. Configure the connection.**
   ```bash
@@ -385,37 +506,69 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
 
   A **remote** is rclone's name for a saved storage connection; `r2:` now means "my R2 account." The summary screen shows the secret in plain text, so don't screenshot or paste it.
   ```bash
-  rclone config update r2 no_check_bucket true
-  chmod 600 ~/.config/rclone/rclone.conf
+  rclone config update r2 no_check_bucket true   # don't try to create the bucket before uploads
+  chmod 600 ~/.config/rclone/rclone.conf         # only your user can read the saved secret
   ```
   *What these do:* rclone normally tries to create the bucket before uploading; the token is deliberately limited to files, so that attempt would be refused. `no_check_bucket` skips it. `chmod 600` makes the config (which now holds the secret) readable only by your user.
 
   **E1f. Test: text file.**
   ```bash
-  echo "hello from lab" > test.txt
-  rclone copy test.txt r2:<bucket-name>/test/ -v
-  rclone ls r2:<bucket-name>
+  echo "hello from lab" > test.txt                    # make a tiny file on the server
+  rclone copy test.txt r2:<bucket-name>/test/ -v      # upload it into the bucket's test/ folder
+  rclone ls r2:<bucket-name>                          # list everything in the bucket
   ```
-  ✅ Expected: `Copied (new)`, then `15 test/test.txt` in the listing.
+  ✅ Expected: `Copied (new)`, then the file in the listing.
   Running the same `copy` again transfers `0 B`: rclone only uploads files that are new or changed. Useful later when re-syncing a dataset.
+
+  <details><summary>Example from this build</summary>
+
+  ```console
+  thovicheka@ubuntu-4gb-sin-2:~$ rclone ls r2:cloud-ai-lab
+         15 test/test.txt                         # ✅ 15 bytes = "hello from lab" + newline
+
+  thovicheka@ubuntu-4gb-sin-2:~$ rclone copy test.txt r2:cloud-ai-lab/test/ -v
+  INFO  :
+  Transferred:   	         0 B / 0 B, -, 0 B/s, ETA -   # already uploaded and unchanged, so skipped
+  ```
+  </details>
 
   **E1g. Test: image round trip** *(laptop → server → R2, checked byte for byte)*. A binary file proves real files arrive intact, not just text.
   ```bash
-  # on the laptop (tip: type "scp ", drag the file into the terminal, then add " lab:~/")
-  scp ~/Downloads/<image>.jpg lab:~/
+  # On the laptop. Tip: type "scp ", drag the file into the terminal, then add " lab:~/"
+  scp ~/Downloads/<image>.jpg lab:~/                  # copy laptop → server over SSH (via Tailscale)
   ```
   ```bash
-  # on the server
-  rclone copy ~/<image>.jpg r2:<bucket-name>/test/ -v
-  rclone check ~/<image>.jpg r2:<bucket-name>/test/ --one-way
+  # On the server
+  rclone copy ~/<image>.jpg r2:<bucket-name>/test/ -v                 # server → R2
+  rclone check ~/<image>.jpg r2:<bucket-name>/test/ --one-way         # compare checksums: identical?
   ```
-  ✅ Expected: `Copied (new)`, then `0 differences found`. You can also open the bucket in the Cloudflare dashboard and preview the image. Filenames are case-sensitive.
+  ✅ Expected: `Copied (new)`, then `0 differences found`. You can also open the bucket in the Cloudflare dashboard and preview the image. Filenames are case-sensitive (`Natalia.jpg` ≠ `natalia.jpg`).
+
+  <details><summary>Example from this build</summary>
+
+  ```bash
+  # laptop
+  scp ~/Downloads/Natalia.jpg lab:~/
+  # server
+  rclone copy ~/Natalia.jpg r2:cloud-ai-lab/test/ -v
+  rclone check ~/Natalia.jpg r2:cloud-ai-lab/test/ --one-way
+  ```
+  Then in the dashboard: **R2 → cloud-ai-lab → test/ → Natalia.jpg** shows the preview.
+  </details>
 
   **E1h. Clean up** (this also proves the token can delete):
   ```bash
-  rclone delete r2:<bucket-name>/test/
-  rm ~/test.txt ~/<image>.jpg
+  rclone delete r2:<bucket-name>/test/                # delete the test files in R2
+  rm ~/test.txt ~/<image>.jpg                         # delete them on the server (separately!)
   ```
+
+  <details><summary>Example from this build</summary>
+
+  ```bash
+  rclone delete r2:cloud-ai-lab/test/
+  rm ~/test.txt ~/test2.txt ~/Natalia.jpg
+  ```
+  </details>
 
   **How the server and R2 relate:** they're independent. Deleting a file in one doesn't touch the other, which makes R2 a natural backup. You won't mirror every action by hand:
 

@@ -68,10 +68,18 @@ Expected: `<output>`
 
 - Say which machine each command runs on when it isn't obvious: *(on your laptop)* / *(on the server)*.
 
-## 5. Placeholders, never secrets
+## 5. Placeholders in instructions, real examples after them
 
-- Use placeholders for anything personal or sensitive: `<server-ip>`, `<username>`, `<github-username>`, `<bucket-name>`.
-- Never commit API keys, tokens, passwords, or real IPs. Show masked values if needed: `ANTHROPIC_API_KEY=sk-ant-***`.
+- **Instructions** use placeholders so anyone can follow them: `<username>`, `<github-username>`, `<bucket-name>`, `<server-ip>`, `<email>`. Each doc lists them at the top with the values used in this build.
+- **After key steps**, add a collapsible **Example from this build** block with the real commands and real output: actual usernames, hostnames, bucket names, file names, and the actual errors hit.
+  ```markdown
+  <details><summary>Example from this build</summary>
+
+  (real commands and output, in a console code block)
+  </details>
+  ```
+- **Comment commands inline** (`# what this line does`) when the purpose isn't obvious.
+- **Never** show real secrets, IP addresses, emails, or endpoints, even in examples. Mask them: `ANTHROPIC_API_KEY=sk-ant-***`, `<server-ip>`.
 - Secrets live in `.env` (git-ignored) on the server only.
 
 ## 6. Document right after finishing a stage
