@@ -2,7 +2,7 @@
 
 **What you'll have working by the end:** an always-on cloud server that only your own devices can reach, where code, agents, and long jobs keep running after you close your laptop.
 
-**Status:** Parts A–B done · Part C in progress (C1–C4 done, C5 being fixed) · Parts D–E not started.
+**Status:** Parts A–C done (server locked down) · Part D in progress · Part E not started.
 
 Placeholders: `<server-ip>`, `<username>`, `<github-username>`, `<email>`.
 
@@ -150,7 +150,7 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ssh-add --apple-use-keychain ~/.ssh/id_ed25519_hetzner
   ```
 
-- [ ] **C5. Turn off password logins and direct root login** *(on the server)*.
+- [x] **C5. Turn off password logins and direct root login** *(on the server)*.
   ```bash
   sudo tee /etc/ssh/sshd_config.d/00-hardening.conf <<'EOF'
   PasswordAuthentication no
@@ -165,6 +165,8 @@ Tip: keep one terminal tab for the laptop and one for the server.
   > **Why `00-` and not `99-`:** cloud images ship `/etc/ssh/sshd_config.d/50-cloud-init.conf` with `PasswordAuthentication yes`. SSH reads these files alphabetically and **the first value wins**, so a `99-` file is silently ignored.
   >
   > **If you see** `50-cloud-init.conf: Permission denied` when running `sshd -T`, add `sudo`.
+  >
+  > **Check the file exists** with `ls /etc/ssh/sshd_config.d/`. You should see `00-hardening.conf` and `50-cloud-init.conf`. If yours is missing, the `tee` command didn't run; run it again.
 
   Verify from the laptop that passwords are refused:
   ```bash
@@ -172,29 +174,60 @@ Tip: keep one terminal tab for the laptop and one for the server.
   ```
   ✅ Expected: `Permission denied (publickey)`. If it asks for a password, the rule isn't active.
 
-- [ ] **C6. Close the public door with a firewall** *(on the server)*.
+- [x] **C6. Close the public door with a firewall** *(on the server)*.
   ```bash
   sudo ufw allow in on tailscale0
   sudo ufw default deny incoming
   sudo ufw default allow outgoing
   sudo ufw enable
   ```
-  *What it does:* drops all incoming internet traffic. Your devices still get in through Tailscale (`tailscale0`); outgoing traffic (downloads, APIs, GitHub) still works. Re-test C4 in a new tab before closing your current session.
+  *What each line does:*
+  - `allow in on tailscale0`: lets your Tailscale devices in. Added **first**, so enabling the firewall can't lock you out.
+  - `default deny incoming`: drops every other incoming connection; the public IP looks dead to the internet.
+  - `default allow outgoing`: the server can still reach GitHub, updates, model APIs, and GPU providers. Replies to its own requests come back normally.
+  - `enable`: activates the rules and keeps them on after reboots. Answer `y` to the SSH warning; you're connected through Tailscale.
 
-- [ ] **C7. Laptop shortcut** in `~/.ssh/config`:
+  ```bash
+  sudo ufw status
+  ```
+  ✅ Expected: `Status: active` with `Anywhere on tailscale0  ALLOW` (plus a v6 line).
+
+  Verify from the **laptop** (not the server, where the test is meaningless because the traffic never crosses the internet):
+  ```bash
+  ssh -i ~/.ssh/id_ed25519_hetzner <username>@lab                              # ✅ still logs in
+  ssh -i ~/.ssh/id_ed25519_hetzner -o ConnectTimeout=10 <username>@<server-ip>  # ✅ Operation timed out
+  ```
+
+  > **Emergency access:** if Tailscale ever breaks, the provider's web console (Hetzner: server → **Console**) still opens a screen on the server, bypassing the firewall. Log in with your user's password.
+  >
+  > **What this does and doesn't protect against:** it stops internet scanners and password-guessing bots. It does not protect a compromised laptop, a stolen Tailscale/GitHub/Hetzner account, or a leaked API key. Keep 2FA on every account and secrets in `.env`.
+
+- [x] **C7. Laptop shortcut** in `~/.ssh/config`:
   ```
   Host lab
     HostName lab
     User <username>
     IdentityFile ~/.ssh/id_ed25519_hetzner
   ```
-  *What it does:* now plain `ssh lab` works.
+  Append it in one go *(on the laptop)*:
+  ```bash
+  cat >> ~/.ssh/config <<'EOF'
 
-- [ ] **C8. Reboot once** *(on the server)* if the login message says `*** System restart required ***`:
+  Host lab
+    HostName lab
+    User <username>
+    IdentityFile ~/.ssh/id_ed25519_hetzner
+  EOF
+  ssh lab
+  ```
+  *What it does:* now plain `ssh lab` works.
+  Why the name `lab`: name machines by role, not by project. One server will host several projects.
+
+- [x] **C8. Reboot once** *(on the server)* if the login message says `*** System restart required ***`:
   ```bash
   sudo reboot
   ```
-  Wait a minute, then `ssh lab`.
+  Wait a minute, then `ssh lab`. ✅ The restart message is gone, and logging in still works, which proves Tailscale and the firewall come back on their own after a reboot.
 
 ---
 
