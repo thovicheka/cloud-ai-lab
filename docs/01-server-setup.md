@@ -2,7 +2,7 @@
 
 **What you'll have working by the end:** an always-on cloud server that only your own devices can reach, where code, agents, and long jobs keep running after you close your laptop.
 
-**Status:** Parts A–D done (locked-down server, dev tools, PyCharm connected) · Part E not started.
+**Status:** Parts A–D done · E1 (R2 storage) done · E2 ("close the laptop" test) next.
 
 Placeholders: `<server-ip>`, `<username>`, `<github-username>`, `<email>`.
 
@@ -321,13 +321,111 @@ All commands in this part run **on the server** (`ssh lab`) unless marked otherw
 
 ## Part E — Storage and final test
 
-- [ ] **E1. Cloudflare R2 bucket + rclone.**
+- [x] **E1. Cloudflare R2 storage + rclone.**
+
+  **What R2 is:** object storage, a place for big files (datasets, audio, checkpoints, final models). It's "S3-compatible," so every tool that speaks Amazon S3 works with it (rclone, `boto3`, PyTorch/Hugging Face loaders), and it has **zero egress fees**: downloading your own data is free. That matters because training jobs pull the dataset to a GPU on every run. Why R2 over S3 or Backblaze B2: see [decisions.md](decisions.md).
+
+  **E1a. Turn on R2** *(Cloudflare dashboard)*. Sign up at dash.cloudflare.com → **Storage & databases → R2 Object Storage** → **Add R2 subscription**. A card is required, but nothing is charged under the free tier (10 GB stored, 1M writes, 10M reads per month at the time of writing).
+
+  > **2FA note:** if you signed up with Google, the Cloudflare account has no password and its 2FA page asks for one. Protect the **Google** account with 2-Step Verification instead; that's the real lock.
+
+  **E1b. Create the bucket.** **Create bucket** → name `<bucket-name>` (permanent, lowercase) → location **Automatic** or **APAC** (closest to a Singapore server) → storage class **Standard**.
+  *Why Standard:* it counts toward the free tier and has no per-read fees. "Infrequent Access" charges per read, which is bad for training data that gets read often.
+  One bucket can hold every project; separate them by path (`project-a/datasets/...`, `project-b/checkpoints/...`).
+
+  **E1c. Create an API token** (a login for programs, not people). R2 overview → **Manage API tokens** (if you can't find it, search "R2 API tokens" in the dashboard) → **Create Account API token**:
+
+  | Setting | Value | Why |
+  |---|---|---|
+  | Name | `lab-server` | Know which machine uses it, and which to revoke if it leaks |
+  | Permission | **Object Read & Write** | Can upload/download/delete files, but not create or delete buckets or change settings |
+  | Buckets | Only `<bucket-name>` | A leaked key can't touch other buckets |
+  | TTL | Forever | Convenient for a server; revoke manually if it leaks |
+  | IP filtering | Empty | GPU workers (Modal, RunPod) have changing IPs and need access too |
+
+  Account tokens (rather than User tokens) keep working regardless of who's in the account, which suits servers.
+
+  Save the three values in a password manager. They're shown **once**. **Never commit them or paste them into chats.**
+
+  | Value | Think of it as |
+  |---|---|
+  | Access Key ID | Username |
+  | Secret Access Key | Password (the dangerous one) |
+  | Endpoint (`https://<account-id>.r2.cloudflarestorage.com`) | Address |
+
+  The separate "Token value" is for Cloudflare's own API; S3 tools don't use it.
+
+  **E1d. Install a current rclone** *(on the server)*. rclone is `cp` for cloud storage.
   ```bash
-  sudo apt install -y rclone
-  rclone config        # type: s3 → provider: Cloudflare → paste R2 keys
-  rclone copy test.txt r2:<bucket-name>/
+  curl https://rclone.org/install.sh | sudo bash
+  rclone version
   ```
-  *What it does:* R2 holds big files (datasets, checkpoints) cheaply with no download fees.
+
+  > **Don't use `apt install rclone`** on Ubuntu 24.04. It's an old (2022) version, and uploads to R2 failed with `NotImplemented: Not Implemented (status code: 501)` before succeeding on retry. If you already installed it: `sudo apt remove -y rclone`, then run the install script above. Your saved config is kept.
+
+  **E1e. Configure the connection.**
+  ```bash
+  rclone config
+  ```
+  Type the **words**, not menu numbers (numbers change between versions):
+
+  | Prompt | Answer |
+  |---|---|
+  | `e/n/d/r/c/s/q>` | `n` (new remote) |
+  | `name>` | `r2` |
+  | `Storage>` | `s3` |
+  | `provider>` | `Cloudflare` |
+  | `env_auth>` | Enter |
+  | `access_key_id>` / `secret_access_key>` | paste from the password manager |
+  | `region>` | Enter (auto) |
+  | `endpoint>` | paste the endpoint |
+  | other prompts | Enter |
+  | `Edit advanced config?` | `n` |
+  | `Keep this "r2" remote?` | `y`, then `q` |
+
+  A **remote** is rclone's name for a saved storage connection; `r2:` now means "my R2 account." The summary screen shows the secret in plain text, so don't screenshot or paste it.
+  ```bash
+  rclone config update r2 no_check_bucket true
+  chmod 600 ~/.config/rclone/rclone.conf
+  ```
+  *What these do:* rclone normally tries to create the bucket before uploading; the token is deliberately limited to files, so that attempt would be refused. `no_check_bucket` skips it. `chmod 600` makes the config (which now holds the secret) readable only by your user.
+
+  **E1f. Test: text file.**
+  ```bash
+  echo "hello from lab" > test.txt
+  rclone copy test.txt r2:<bucket-name>/test/ -v
+  rclone ls r2:<bucket-name>
+  ```
+  ✅ Expected: `Copied (new)`, then `15 test/test.txt` in the listing.
+  Running the same `copy` again transfers `0 B`: rclone only uploads files that are new or changed. Useful later when re-syncing a dataset.
+
+  **E1g. Test: image round trip** *(laptop → server → R2, checked byte for byte)*. A binary file proves real files arrive intact, not just text.
+  ```bash
+  # on the laptop (tip: type "scp ", drag the file into the terminal, then add " lab:~/")
+  scp ~/Downloads/<image>.jpg lab:~/
+  ```
+  ```bash
+  # on the server
+  rclone copy ~/<image>.jpg r2:<bucket-name>/test/ -v
+  rclone check ~/<image>.jpg r2:<bucket-name>/test/ --one-way
+  ```
+  ✅ Expected: `Copied (new)`, then `0 differences found`. You can also open the bucket in the Cloudflare dashboard and preview the image. Filenames are case-sensitive.
+
+  **E1h. Clean up** (this also proves the token can delete):
+  ```bash
+  rclone delete r2:<bucket-name>/test/
+  rm ~/test.txt ~/<image>.jpg
+  ```
+
+  **How the server and R2 relate:** they're independent. Deleting a file in one doesn't touch the other, which makes R2 a natural backup. You won't mirror every action by hand:
+
+  | Where | What lives there | How it gets there |
+  |---|---|---|
+  | GitHub | Code, docs, configs | `git push` |
+  | Server disk | Working copy, temporary files | You edit them |
+  | R2 | Datasets, checkpoints, final models, results | rclone occasionally; training code automatically (Stage 2) |
+
+  > **Use `rclone copy`, not `rclone sync`,** unless you're sure. `sync` makes the destination an exact mirror of the source, which **deletes** files in the destination that aren't in the source.
 
 - [ ] **E2. The "close the laptop" test.**
   ```bash

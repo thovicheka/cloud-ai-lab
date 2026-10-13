@@ -17,8 +17,14 @@ Why each tool was picked, and what it was picked over. Updated as the build goes
 - Agents push to branches, never `main`. A human reviews and merges.
 - Public repo with secret scanning and push protection on.
 
-## Big-file storage: Cloudflare R2 (over AWS S3)
-- Same S3-compatible API, much cheaper storage, and no fee for downloading your own data.
+## Big-file storage: Cloudflare R2 (over AWS S3, GCS, Backblaze B2)
+- **Object storage, not a database:** it stores files (datasets, checkpoints, models), not queryable rows.
+- **Zero egress fees** is the deciding factor. Training jobs download the dataset to a GPU on every run. Example: a 50 GB dataset pulled 10 times a month is 500 GB of downloads, roughly $45 on S3 and $0 on R2.
+- **S3-compatible:** rclone, `boto3`, and ML data loaders work unchanged, so switching providers later is easy.
+- **Cheap storage** (~$0.015/GB/month after 10 GB free). Expected cost for this lab: ~$1–5/month at 100–300 GB.
+- **Runner-up: Backblaze B2.** Cheaper storage, free egress up to a monthly limit. R2 wins on simplicity: no limits to track.
+- **Rejected: Hetzner Object Storage.** Cheap, but EU-only regions, far from a Singapore server.
+- **Cost control:** checkpoints are what grows. Keep only the best and the latest per run.
 
 ## GPU compute: Modal + RunPod (over Vast.ai)
 - **Modal** for batch jobs: billed per second, starts and stops on its own.
