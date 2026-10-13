@@ -246,3 +246,65 @@ All checks passed!
 
 **5. GPU run and resume test:** not done. Needs 2.1, the `r2` secret, and the human.
 </details>
+
+## 6.2 — Notifier
+- **Branch:** `task/6.2-notifier` (built on `task/2.4-train-template`; merge 2.2 → 2.3 → 2.4 → 6.2)
+- **State:** blocked: code written and tested with a fake Telegram API; real messages need 6.1
+- **Done:** `lab/notify.py`: `notify(text)` sends to Telegram, and the `notify_job(name, gpu=...)` context manager sends ▶️ Started / ✅ Finished / ❌ Failed / ⏹️ Stopped with duration and estimated GPU cost. It never raises: unconfigured or unreachable Telegram prints a warning and the job carries on. Errors never print the token. Standard library only. All three jobs (`hello_gpu`, `r2_hello`, `train_template`) wrap their remote call with it in the local entrypoint, which runs on the server, so Modal needs no Telegram secret. 16 new tests (32 total). Telegram keys added to `.env.example`.
+- **Next:** the human sets up the bot (6.1) and runs the free self-test.
+- **Human must:**
+  1. Finish **6.1**: create a bot with @BotFather (`/newbot`), then send your bot any message (bots can't message you first). Get your chat ID from @userinfobot. Add both to `.env` (keys in `.env.example`).
+  2. Free test, no GPU or Modal (runs a fake job that finishes and one that fails):
+     ```bash
+     uv run python -m lab.notify --test
+     ```
+     **Cost:** $0. **Expected:** four Telegram messages: Started, Finished, Started, Failed.
+  3. Optional real-job check (after 2.1 + 2.3): `modal run jobs/train_template.py --run-name notify-1 --crash-at-step 600`, then the same command without the flag. Expect Started → Failed, then Started → Finished. **Estimated cost: ~$0.05.**
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Check whether 6.1 is done**
+```console
+$ test -f .env && echo ".env exists" || echo "no .env"
+no .env
+```
+**Result:** ❌ No bot token yet. The notifier was written and tested with Telegram's API faked.
+
+**2. Tests (fake Telegram, nothing sent)**
+```console
+$ uv run pytest -q
+................................                                         [100%]
+32 passed in 3.95s
+```
+**Result:** ✅ Covers: the request sent, truncation to 4096 chars, no config, HTTP 401 / non-JSON 502 / DNS failure / timeout (none raise, none print the token), cost and duration formatting, finished / failed (re-raises) / Ctrl-C messages, the job still runs when Telegram is down, the `--test` self-test sends all three kinds, `.env` parsing.
+
+**3. First version used `python-dotenv`**
+**Result:** ❌ (caught by reading, before any run)
+- **Error (would have been):** `ModuleNotFoundError: No module named 'dotenv'` on every `modal run`.
+- **Cause:** ROADMAP 2.1 installs the CLI with `uv tool install modal`, which runs the local entrypoint in the tool's own environment, without the project's packages.
+- **Fix:** removed `python-dotenv`; a 15-line standard-library `.env` reader instead. Checked under bare system Python:
+```console
+$ python3 -I -c "import sys; sys.path.insert(0, '.'); from lab.notify import notify_job; print('lab.notify imports under bare system python', sys.version.split()[0])"
+lab.notify imports under bare system python 3.12.3
+```
+**Result:** ✅
+
+**4. Self-test with no Telegram config** (real run; shows the graceful fallback)
+```console
+$ uv run python -m lab.notify --test
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ▶️ Started: notify test: a job that finishes (T4)
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ✅ Finished: notify test: a job that finishes in 0m 01s, ~$0.00 on T4
+this is the note line
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ▶️ Started: notify test: a job that fails (T4)
+notify: TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; not sent: ❌ Failed: notify test: a job that fails after 0m 01s, ~$0.00 on T4
+RuntimeError: simulated failure (this is expected)
+$ echo $?
+0
+```
+**Result:** ✅ The job flow completes, and the messages print instead of being sent.
+
+**5. Known limits**
+- Duration is measured on the server and includes container start-up, so the cost slightly overestimates GPU time. CPU and memory charges (a few %) aren't counted.
+- Untested until a real run: whether `modal run` delivers Ctrl-C to the entrypoint as `KeyboardInterrupt` (→ ⏹️ Stopped), or cancels it some other way (then no stop message).
+- With `modal run --detach`, if the server-side client exits, the job keeps going but no Finished message arrives. Stage 4 (Prefect) is the place to fix that.
+</details>

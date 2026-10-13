@@ -54,6 +54,10 @@ def hello(n: int = 4096) -> dict:
 
 @app.local_entrypoint()
 def main():
-    result = hello.remote()
+    from lab.notify import notify_job  # here, not at the top: containers don't need it
+
+    with notify_job("hello-gpu", gpu=GPU) as job:
+        result = hello.remote()
+        job.note = f"{result['gpu']}: {result['tflops']} TFLOPS"
     for key, value in result.items():
         print(f"{key:>9}: {value}")
