@@ -23,7 +23,7 @@ This file is read automatically by Claude Code at the start of every session. Fo
 ## Hard rules
 
 1. **Branches only.** Create a branch per task: `task/<id>-<short-name>` (e.g. `task/2.3-modal-r2-checkpoint`). Never commit to `main`. Never force-push.
-2. **Ask before committing or pushing.** Show the human the diff summary and wait for a yes.
+2. Commit and push freely to your own task/... branch, as often as useful (at least after each finished step). Never commit or push to main, never merge, never force-push. The human reviews and merges.
 3. **No `sudo`.** If a step needs it, stop, write the exact command(s) and what they do, and ask the human to run them.
 4. **Never spend money on your own.** Do not start GPU jobs (Modal, RunPod), buy anything, or change billing. Write the code, then tell the human the exact command to run and its estimated cost. Small CPU-only test runs are fine only if the human says so.
 5. **Secrets stay in `.env`** (git-ignored) or the tool's own config (`~/.modal.toml`, `~/.config/rclone/rclone.conf`). Never print, log, commit, or paste keys. Never read `.env` aloud in output.
@@ -34,10 +34,17 @@ This file is read automatically by Claude Code at the start of every session. Fo
 ## How to work a task
 
 1. Read the task in `docs/ROADMAP.md`: its goal, which steps are 🧑 (human) vs 🤖 (you), and its "done when."
-2. If a 🧑 step isn't done yet (an account, key, or `sudo` command), stop and ask for it.
+2. If a 🧑 step isn't done, record it in docs/STATUS.md and move to the next task.
 3. Create the branch, do the 🤖 steps, test what you can without spending money.
 4. Update docs as you go, following `docs/STYLE.md`. **For every step, record the command, its real output, the result (✅/❌), and for failures the error, cause, and fix**, in an "Example from this build" block. Mask secrets, IPs, and emails.
-5. Finish with a short report: what changed, how you tested it, what the human must do next (commands to run, keys to add), and any open questions. Then ask to commit.
+5. Finish with a short report: what changed, how you tested it, what the human must do next (commands to run, keys to add), and any open questions. Commit and push to your task branch (never main).
+
+## Working unattended
+
+- Keep docs/STATUS.md current: for each task, its branch, state (in progress / done / blocked), what's done, what's next, and what the human must do. Update it after every step and push.
+- If a task needs a 🧑 step that isn't done (account, key, sudo, paying), record exactly what's needed in docs/STATUS.md, then move on to the next task you were given instead of waiting.
+- When all given tasks are done or blocked, stop and write a final summary at the top of docs/STATUS.md.
+- Never start paid jobs or spend money, even if a task seems to need it. Write the command and estimated cost in STATUS.md instead.
 
 ## Conventions
 
