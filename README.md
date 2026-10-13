@@ -49,6 +49,7 @@ Design rules:
 
 | Stage | Doc |
 |---|---|
+| 0. Agent on the server ✅ | [docs/00-agent-setup.md](docs/00-agent-setup.md) |
 | 1. Server, access, dev tools, storage ✅ | [docs/01-server-setup.md](docs/01-server-setup.md) |
 | 2. GPU compute | coming |
 | 3. Experiment tracking | coming |
