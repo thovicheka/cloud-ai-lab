@@ -55,6 +55,8 @@ Design rules:
 | 4. Job queue | coming |
 | 5. Agents | coming |
 | 6. Notifications | coming |
+| **Roadmap: task list for humans and agents** | [docs/ROADMAP.md](docs/ROADMAP.md) |
+| Rules for AI agents | [CLAUDE.md](CLAUDE.md) |
 | Why each tool was chosen | [docs/decisions.md](docs/decisions.md) |
 | How these docs are written | [docs/STYLE.md](docs/STYLE.md) |
 
