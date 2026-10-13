@@ -14,12 +14,12 @@ The task list for building the rest of the lab. Each task has an ID, a goal, ste
 
 ## Stage 0 — Agent on the server
 
-- [ ] **0.1 Install Claude Code on `lab`** — 🧑
+- [x] **0.1 Install Claude Code on `lab`** — 🧑
   - 🧑 `curl -fsSL https://claude.ai/install.sh | bash`, then `source ~/.bashrc`, `claude --version`
   - 🧑 `tmux new -s claude` → `cd ~/projects/cloud-ai-lab` → `claude` → log in with the **Claude subscription** (not an API key); open the printed link on the laptop, paste the code back
   - **Done when:** Claude Code's prompt is running inside `tmux` on the server.
 
-- [ ] **0.2 Document Stage 0** — 🤖
+- [x] **0.2 Document Stage 0** — 🤖
   - 🤖 Add the install/login steps (with troubleshooting) to `docs/00-agent-setup.md`, following STYLE.md.
   - **Done when:** the doc exists on a branch, ready for review.
 
