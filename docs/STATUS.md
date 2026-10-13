@@ -194,3 +194,55 @@ $ uv run modal secret create --help
 
 **5. Write to real R2 from Modal:** not done. Needs 2.1, the secret, and the human.
 </details>
+
+## 2.4 — Checkpointed training template
+- **Branch:** `task/2.4-train-template` (built on `task/2.3-modal-r2`; merge 2.2 → 2.3 → 2.4)
+- **State:** blocked: code written, checkpoint logic tested offline; the GPU run needs 2.1 + the `r2` secret (2.3)
+- **Done:** `lab/checkpoints.py` (`RunCheckpoints`: `latest.pt` + `best.pt` per run, overwritten in place, so only 2 objects ever; `restore()` for resuming). `jobs/train_template.py`: small CNN on MNIST (T4); evaluates and checkpoints every 500 steps; resumes weights, optimizer, step, best loss, RNG and data position from `latest.pt`; `--crash-at-step N` simulates a lost GPU. 6 new tests in `tests/test_checkpoints.py` (16 total).
+- **Not tested:** the training loop itself. CLAUDE.md forbids local training and torch isn't installed here, so the first Modal run is its first real test.
+- **Next:** the human runs the resume test (below).
+- **Human must:**
+  1. Finish 2.1 and 2.3's secret.
+  2. Crash on purpose, then resume (from the repo root):
+     ```bash
+     modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100   # dies after saving step 1000
+     modal run jobs/train_template.py --run-name try-1                        # should print "resumed ... at step 1000"
+     rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/                       # exactly best.pt and latest.pt
+     ```
+     Pressing Ctrl-C during the first run works too (it stops the Modal app), but 3000 steps on a T4 finish in well under a minute, so it's hard to time.
+     **Estimated cost:** T4 at $0.000164/s; each run ~1–2 min including startup and the first image build: **~$0.05 for both runs**.
+  3. Check: the second run prints `resumed mnist/checkpoints/try-1/latest.pt at step 1000` and ends with `steps_this_run: 2000`, `resumed_from: 1000`.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Write `lab/checkpoints.py` and test it (moto, no network)**
+```console
+$ uv run pytest -q
+................                                                         [100%]
+16 passed in 4.23s
+```
+**Result:** ✅ New tests cover: key layout, `improved()` for min and max, a new run restores nothing, resume returns the last save while best moves only on improvement, only 2 objects after 10 saves, runs don't see each other's checkpoints. The R2 fixture moved to `tests/conftest.py` so both test files share it.
+
+**2. Write the template; check it loads and lints**
+```console
+$ uv run python -c "import runpy; m = runpy.run_path('jobs/train_template.py'); print('app:', m['app'].name)"
+app: train-template
+$ uvx ruff@0.14.0 check --select E,F,W,B --line-length 100 lab jobs tests
+All checks passed!
+```
+**Result:** ✅
+
+**3. Review the resume path by reading it** (it can't run here)
+**Result:** ❌ found a bug before any run
+- **Error (would have been):** resume crashes in `torch.set_rng_state`.
+- **Cause:** the checkpoint was loaded with `map_location="cuda"`, which moves the saved RNG state to the GPU; `set_rng_state` only accepts a CPU tensor.
+- **Fix:** load with `map_location="cpu"`. `load_state_dict` copies weights and optimizer state onto the model's device anyway.
+
+**4. Design notes**
+- Batch order depends only on `(seed, epoch, step)`: each epoch's shuffle uses its own seeded generator. A resumed run sees exactly the batches the lost run would have seen next.
+- Dropout uses the CUDA RNG, which is saved and restored. Results should match an uninterrupted run apart from cuDNN's usual non-determinism.
+- `best.pt` is uploaded before `latest.pt`. A crash between the two then leaves `latest` one save behind (resume redoes ≤500 steps) rather than losing a new best.
+- `--run-name` has no default on purpose: rerunning with the same name resumes, and a new name starts fresh. A finished run rerun with its name does nothing and returns its result.
+
+**5. GPU run and resume test:** not done. Needs 2.1, the `r2` secret, and the human.
+</details>
