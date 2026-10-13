@@ -62,3 +62,135 @@ Permission to use Bash with command rm -rf ./does-not-exist-deny-test has been d
 
 **Limits (from the docs):** deny rules match the command as written. They are not a security wall: a bare `git push` while on `main`, `git push origin HEAD:main`, `rm -fr`, `/usr/bin/sudo`, `bash -c "..."`, or a Python script reading `.env` aren't matched. They catch the usual form; the rules in `CLAUDE.md` and branch protection on GitHub cover the rest.
 </details>
+
+## 2.2 — Hello-GPU job
+- **Branch:** `task/2.2-hello-gpu`
+- **State:** blocked: code written and checked locally; can't run until 2.1 is done
+- **Done:** `uv` project (`pyproject.toml`, `uv.lock`, Python 3.12, `modal` 1.6.1). `jobs/hello_gpu.py`: a T4 function that prints `nvidia-smi`, times a 4096×4096 PyTorch matmul, and returns GPU name, torch/CUDA versions, ms and TFLOPS. 5-minute hard timeout. Cost estimate in the file's docstring.
+- **Next:** the human runs it (below).
+- **Human must:**
+  1. Finish **2.1**: sign up for Modal, **set a monthly spending limit**, then on the server:
+     ```bash
+     uv tool install modal    # the `modal` command; not installed yet
+     modal token new          # opens a login link; writes ~/.modal.toml
+     ```
+  2. Run the job: `modal run jobs/hello_gpu.py`
+     **Estimated cost:** T4 at $0.000164/s (modal.com/pricing, 2026-10-13). ~1–2 min of GPU time plus a few minutes of CPU for the first image build: **under $0.05**, inside the Starter plan's $30/month free credit.
+  3. Check: output shows `gpu: Tesla T4` and the command returns to the prompt by itself.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Check whether 2.1 is done**
+```console
+$ which modal; test -f ~/.modal.toml && echo "modal.toml exists" || echo "no modal.toml"
+bash: line 1: modal: command not found
+no modal.toml
+```
+**Result:** ❌ 2.1 not done: no `modal` command and no token. The code can still be written; running it waits for the human.
+
+**2. Create the project and add the Modal client library**
+```console
+$ uv init --bare --python 3.12 --name cloud-ai-lab
+Initialized project `cloud-ai-lab`
+$ uv add modal
+...
+$ uv run python -c "import modal; print(modal.__version__)"
+1.6.1
+$ uv python pin 3.12
+Pinned `.python-version` to `3.12`
+```
+**Result:** ✅ The library only; it needs no account.
+
+**3. Pick the GPU and estimate the cost** (modal.com/pricing, read 2026-10-13)
+
+| GPU | $/s | $/h |
+|---|---|---|
+| T4 | 0.000164 | 0.59 |
+| L4 | 0.000222 | 0.80 |
+| A10 | 0.000306 | 1.10 |
+
+**Result:** ✅ T4 is the cheapest. Pinned `torch==2.14.1` (released 2026-09-30).
+
+**4. Check the job loads** (no network, no Modal account needed)
+```console
+$ uv run python -m py_compile jobs/hello_gpu.py
+$ uv run python -c "import runpy; m = runpy.run_path('jobs/hello_gpu.py'); app = m['app']; print('app:', app.name, '| functions:', list(app.registered_functions)); print('entrypoints:', list(app.registered_entrypoints))"
+app: hello-gpu | functions: ['hello']
+entrypoints: ['main']
+```
+**Result:** ✅ (Modal warns that `registered_functions` is deprecated in 1.7; only the check uses it, not the job.)
+
+**5. Run on a GPU:** not done. Needs 2.1 and the human (`modal run` costs money).
+</details>
+
+## 2.3 — R2 from Modal
+- **Branch:** `task/2.3-modal-r2` (built on `task/2.2-hello-gpu`; merge 2.2 first)
+- **State:** blocked: code written and tested offline; the real run needs 2.1 and the Modal secret
+- **Done:** `lab/storage.py` (`r2_key`, `upload`, `download`, `list_keys`, `exists`; credentials from env vars; keys laid out as `<project>/<datasets|checkpoints|runs>/...`). `jobs/r2_hello.py`: a CPU-only Modal job that writes `hello/runs/<UTC stamp>/hello.txt` and lists it. 10 tests in `tests/test_storage.py` against an in-memory fake S3 (moto). `.env.example` with the R2 keys.
+- **Next:** the human adds the secret and runs the job (below).
+- **Human must:**
+  1. Finish **2.1** (see 2.2).
+  2. Create `.env` from `.env.example` and fill in the R2 values (the same endpoint and token as the rclone `r2` remote):
+     ```bash
+     cp .env.example .env && chmod 600 .env && nano .env
+     ```
+  3. Store only the `R2_` keys as the Modal secret `r2` (via a temp file, so keys never land in shell history):
+     ```bash
+     grep '^R2_' .env > ~/r2.env && modal secret create r2 --from-dotenv ~/r2.env; rm ~/r2.env
+     ```
+  4. Run (from the repo root): `modal run jobs/r2_hello.py`. **Estimated cost:** CPU only, a few seconds: **under $0.01**.
+  5. Check: `rclone ls r2:cloud-ai-lab/hello/runs/` lists the new `hello.txt`.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Add dependencies**
+```console
+$ uv add boto3
+$ uv add --dev pytest "moto[s3]"
+$ grep -A1 -E '^name = "(boto3|moto|pytest)"' uv.lock
+name = "boto3"
+version = "1.43.112"
+name = "moto"
+version = "5.2.4"
+name = "pytest"
+version = "9.1.1"
+```
+**Result:** ✅
+
+**2. Test `lab/storage.py` against moto (fake S3, no network)**
+```console
+$ uv run pytest -q
+...
+E   botocore.exceptions.SSLError: SSL validation failed for https://fake-account.r2.cloudflarestorage.com/test-bucket [SSL: SSLV3_ALERT_HANDSHAKE_FAILURE] sslv3 alert handshake failure (_ssl.c:1000)
+...
+6 passed, 4 errors in 20.83s
+```
+**Result:** ❌
+- **Error:** the tests that touch the bucket tried to reach a real host.
+- **Cause:** moto only intercepts AWS URLs by default. An R2-style `endpoint_url` went out to the network (with fake keys, so nothing happened).
+- **Fix:** set `MOTO_S3_CUSTOM_ENDPOINTS` to the test endpoint in the fixture.
+```console
+$ uv run pytest -q
+..........                                                               [100%]
+10 passed in 3.66s
+```
+**Result:** ✅ Covers key layout and bad paths, a binary round trip, overwrite, prefix listing past one page (1005 keys), `exists`, and a clear error when a variable is missing.
+
+**3. Check the job loads and finds `lab` locally**
+```console
+$ uv run python -c "import runpy, importlib.util; m = runpy.run_path('jobs/r2_hello.py'); print('app:', m['app'].name); print('lab found at:', importlib.util.find_spec('lab').origin)"
+app: r2-hello
+lab found at: /home/thovicheka/projects/cloud-ai-lab/lab/__init__.py
+```
+**Result:** ✅ `modal run` adds the current directory to `sys.path` (`modal/cli/import_refs.py`), so jobs must be run **from the repo root** for `add_local_python_source("lab")` to find the package.
+
+**4. Choose how the secret is created**
+```console
+$ uv run modal secret create --help
+...
+  --from-dotenv PATH  Path to a .env file to load secrets from.
+```
+**Result:** ✅ `--from-dotenv` loads *every* key in the file, so the human's command feeds it only the `R2_` lines.
+
+**5. Write to real R2 from Modal:** not done. Needs 2.1, the secret, and the human.
+</details>
