@@ -62,3 +62,63 @@ Permission to use Bash with command rm -rf ./does-not-exist-deny-test has been d
 
 **Limits (from the docs):** deny rules match the command as written. They are not a security wall: a bare `git push` while on `main`, `git push origin HEAD:main`, `rm -fr`, `/usr/bin/sudo`, `bash -c "..."`, or a Python script reading `.env` aren't matched. They catch the usual form; the rules in `CLAUDE.md` and branch protection on GitHub cover the rest.
 </details>
+
+## 2.2 — Hello-GPU job
+- **Branch:** `task/2.2-hello-gpu`
+- **State:** blocked: code written and checked locally; can't run until 2.1 is done
+- **Done:** `uv` project (`pyproject.toml`, `uv.lock`, Python 3.12, `modal` 1.6.1). `jobs/hello_gpu.py`: a T4 function that prints `nvidia-smi`, times a 4096×4096 PyTorch matmul, and returns GPU name, torch/CUDA versions, ms and TFLOPS. 5-minute hard timeout. Cost estimate in the file's docstring.
+- **Next:** the human runs it (below).
+- **Human must:**
+  1. Finish **2.1**: sign up for Modal, **set a monthly spending limit**, then on the server:
+     ```bash
+     uv tool install modal    # the `modal` command; not installed yet
+     modal token new          # opens a login link; writes ~/.modal.toml
+     ```
+  2. Run the job: `modal run jobs/hello_gpu.py`
+     **Estimated cost:** T4 at $0.000164/s (modal.com/pricing, 2026-10-13). ~1–2 min of GPU time plus a few minutes of CPU for the first image build: **under $0.05**, inside the Starter plan's $30/month free credit.
+  3. Check: output shows `gpu: Tesla T4` and the command returns to the prompt by itself.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Check whether 2.1 is done**
+```console
+$ which modal; test -f ~/.modal.toml && echo "modal.toml exists" || echo "no modal.toml"
+bash: line 1: modal: command not found
+no modal.toml
+```
+**Result:** ❌ 2.1 not done: no `modal` command and no token. The code can still be written; running it waits for the human.
+
+**2. Create the project and add the Modal client library**
+```console
+$ uv init --bare --python 3.12 --name cloud-ai-lab
+Initialized project `cloud-ai-lab`
+$ uv add modal
+...
+$ uv run python -c "import modal; print(modal.__version__)"
+1.6.1
+$ uv python pin 3.12
+Pinned `.python-version` to `3.12`
+```
+**Result:** ✅ The library only; it needs no account.
+
+**3. Pick the GPU and estimate the cost** (modal.com/pricing, read 2026-10-13)
+
+| GPU | $/s | $/h |
+|---|---|---|
+| T4 | 0.000164 | 0.59 |
+| L4 | 0.000222 | 0.80 |
+| A10 | 0.000306 | 1.10 |
+
+**Result:** ✅ T4 is the cheapest. Pinned `torch==2.14.1` (released 2026-09-30).
+
+**4. Check the job loads** (no network, no Modal account needed)
+```console
+$ uv run python -m py_compile jobs/hello_gpu.py
+$ uv run python -c "import runpy; m = runpy.run_path('jobs/hello_gpu.py'); app = m['app']; print('app:', app.name, '| functions:', list(app.registered_functions)); print('entrypoints:', list(app.registered_entrypoints))"
+app: hello-gpu | functions: ['hello']
+entrypoints: ['main']
+```
+**Result:** ✅ (Modal warns that `registered_functions` is deprecated in 1.7; only the check uses it, not the job.)
+
+**5. Run on a GPU:** not done. Needs 2.1 and the human (`modal run` costs money).
+</details>
