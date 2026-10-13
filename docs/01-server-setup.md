@@ -2,7 +2,7 @@
 
 **What you'll have working by the end:** an always-on cloud server that only your own devices can reach, where code, agents, and long jobs keep running after you close your laptop.
 
-**Status:** Parts A–C done (server locked down) · Part D in progress · Part E not started.
+**Status:** Parts A–D done (locked-down server, dev tools, PyCharm connected) · Part E not started.
 
 Placeholders: `<server-ip>`, `<username>`, `<github-username>`, `<email>`.
 
@@ -233,29 +233,89 @@ Tip: keep one terminal tab for the laptop and one for the server.
 
 ## Part D — Dev tools on the server
 
-- [ ] **D1. Install core tools.**
+All commands in this part run **on the server** (`ssh lab`) unless marked otherwise.
+
+> **Paste one command at a time.** Some terminals drop line breaks when pasting several lines, which merges commands into one (`...install.sh | shtailscale up`, `git clone ...gitcd cloud-ai-lab`). If you see `command not found` or `unknown option` on a multi-line paste, that's why. Nothing breaks; rerun the commands separately.
+
+- [x] **D1. Install core tools.**
   ```bash
   sudo apt install -y git tmux build-essential
+  ```
+  *What it does:* `git` for version control; `tmux` keeps programs running after you disconnect (the key to "close the laptop and it keeps working"); `build-essential` provides compilers some Python packages need.
+  ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
-  *What it does:* `git` for version control; `tmux` keeps programs running after you disconnect; `build-essential` lets Python packages compile; `uv` manages Python versions and packages.
+  *What it does:* installs `uv`, one tool for Python versions, virtual environments, and packages (replaces pip + venv + pyenv).
+  ```bash
+  source ~/.bashrc
+  uv --version
+  ```
+  ✅ Expected: `uv 0.x.x`.
 
-- [ ] **D2. Give the server its own GitHub key.**
+  > **If you see** `WARNING: terminal is not fully functional` (e.g. from `git log`), your laptop's terminal reports a type the server doesn't know. Fix once:
+  > ```bash
+  > echo 'export TERM=xterm-256color' >> ~/.bashrc
+  > source ~/.bashrc
+  > ```
+
+- [x] **D2. Give the server its own GitHub key.**
   ```bash
   ssh-keygen -t ed25519 -C "lab-server" -f ~/.ssh/id_ed25519
-  cat ~/.ssh/id_ed25519.pub   # add to GitHub → Settings → SSH and GPG keys
-  ssh -T git@github.com       # should greet your project account
   ```
-  *What it does:* lets the server (and agents on it) pull and push code. The server knows only one account, so no alias is needed.
+  Press **Enter twice** at the passphrase prompts: agents will push unattended, so this key must work without one. Tailscale and the firewall are what protect it.
 
-- [ ] **D3. Clone the repo on the server.**
+  > **If you typed a passphrase by mistake,** remove it without making a new key: `ssh-keygen -p -f ~/.ssh/id_ed25519` → old passphrase → Enter → Enter.
+
   ```bash
-  git clone git@github.com:<github-username>/cloud-ai-lab.git
+  cat ~/.ssh/id_ed25519.pub
   ```
-  *What it does:* the server copy becomes the real working copy.
+  Copy the line into GitHub (project account) → **Settings → SSH and GPG keys → New SSH key**, title `lab-server`. GitHub may ask you to re-authenticate ("sudo mode"); use your passkey, password, or 2FA code.
+  ```bash
+  ssh -T git@github.com
+  ```
+  ✅ Expected: `Hi <github-username>! You've successfully authenticated...` with **no** passphrase prompt. Type `yes` at the first-time fingerprint question; GitHub's official ED25519 fingerprint is `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`.
 
-- [ ] **D4. Connect the IDE** (PyCharm: JetBrains Gateway → SSH → host `lab`; or VS Code Remote-SSH).
-  *What it does:* you edit files that live on the server through your laptop's IDE. PyCharm remote development may need a paid or student license.
+  *What it does:* lets the server (and agents on it) pull and push code. The server only uses one account, so no alias is needed here.
+
+  > **Trade-off:** an account-level key can reach every repo on the account. If that's too broad later, use per-repo **deploy keys** instead.
+
+- [x] **D3. Set the commit identity and clone the repo.**
+  ```bash
+  git config --global user.name "<Your Name>"
+  git config --global user.email "<email or noreply address>"
+  ```
+  *What it does:* stamps your name on commits made from the server. `--global` is fine because the server only uses the project account.
+  ```bash
+  mkdir -p ~/projects && cd ~/projects
+  git clone git@github.com:<github-username>/cloud-ai-lab.git
+  cd cloud-ai-lab
+  git log --oneline -3
+  ```
+  *What it does:* `~/projects` holds every repo you'll work on. The server copy becomes the **real working copy**; the laptop copy is only a backup. Run `git pull` on the laptop copy before editing it.
+
+- [x] **D4. Connect PyCharm** *(on the laptop)*.
+
+  Remote development is a **PyCharm Pro** feature. Options: the 30-day Pro trial, the free **JetBrains student license** (jetbrains.com/student), or the **GitHub Student Developer Pack**, which includes it. Free alternative: VS Code + the Remote-SSH extension.
+
+  1. PyCharm → **File → Remote Development → SSH → New Connection**: Username `<username>`, Host `lab`, Port `22`.
+  2. Tick **Specify private key** → `~/.ssh/id_ed25519_hetzner` (in the file picker, **Cmd+Shift+.** shows hidden folders like `.ssh`). Pick the file **without** `.pub`.
+  3. **Check Connection and Continue.** When asked for a passphrase, it's the **laptop key's passphrase**, not the server's sudo password.
+  4. **IDE version:** pick the newest *stable* release (avoid "RC"/"EAP" if a stable one is listed).
+  5. **Project directory:** `/home/<username>/projects/cloud-ai-lab` → **Download IDE and Connect**. The first run installs PyCharm's backend on the server (3–5 min).
+
+  > **If you see** "The host doesn't meet the minimal requirements" (4 GB RAM / 4 cores), a 2 vCPU / 4 GB server still works for editing. Click **Continue Anyway** and add swap (D5). If it feels slow, resize the server (Hetzner → server → **Rescale**; takes a reboot).
+
+- [x] **D5. Add swap.**
+  ```bash
+  sudo fallocate -l 4G /swapfile
+  sudo chmod 600 /swapfile
+  sudo mkswap /swapfile
+  sudo swapon /swapfile
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+  free -h
+  ```
+  *What it does:* uses 4 GB of disk as emergency memory, so the server slows down instead of crashing when the IDE, agents, and jobs run together. The `fstab` line keeps it on after reboots. ✅ `free -h` shows `Swap: 4.0Gi`.
+  Read the **available** column, not **free**: Linux fills spare memory with cache and hands it back when needed.
 
 ---
 
