@@ -4,7 +4,7 @@ A self-hosted cloud lab for ML and data science: always-on server, AI agents, on
 
 Your laptop becomes just a window. Code, data, agents, and training jobs live in the cloud, so work keeps running when the laptop is closed, and you can check in from any device.
 
-> **Status:** being built in public. Stage 1 (the server) is in progress. Docs are written as each stage is completed, including the mistakes along the way.
+> **Status:** being built in public. Stage 1: server rented, private Tailscale access working; SSH hardening and firewall in progress. Docs are written as each stage is completed, including the mistakes along the way.
 
 ---
 
