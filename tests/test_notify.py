@@ -1,36 +1,13 @@
 """lab/notify.py with Telegram's API replaced by a fake: nothing is sent."""
 
 import io
-import json
 import urllib.error
 
 import pytest
 
 from lab import notify as n
 
-TOKEN = "123456:FAKE-TOKEN-must-never-be-printed"
-
-
-@pytest.fixture
-def telegram(monkeypatch):
-    """Configure fake credentials and record every request instead of sending it."""
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", TOKEN)
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")
-    sent = []
-
-    class Response(io.BytesIO):
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            return False
-
-    def fake_urlopen(request, timeout):
-        sent.append({"url": request.full_url, **json.loads(request.data)})
-        return Response(b'{"ok": true}')
-
-    monkeypatch.setattr(n.urllib.request, "urlopen", fake_urlopen)
-    return sent
+TOKEN = "123456:FAKE-TOKEN-must-never-be-printed"  # same as tests/conftest.py
 
 
 def texts(sent):

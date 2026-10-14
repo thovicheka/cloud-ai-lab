@@ -1,8 +1,11 @@
+import io
+import json
+
 import boto3
 import pytest
 from moto import mock_aws
 
-from lab import storage
+from lab import notify, storage
 
 ENDPOINT = "https://fake-account.r2.cloudflarestorage.com"
 
@@ -22,3 +25,28 @@ def r2(monkeypatch):
         )
         yield
     storage.client.cache_clear()
+
+
+TOKEN = "123456:FAKE-TOKEN-must-never-be-printed"
+
+
+@pytest.fixture
+def telegram(monkeypatch):
+    """Configure fake credentials and record every request instead of sending it."""
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", TOKEN)
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "42")
+    sent = []
+
+    class Response(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(request, timeout):
+        sent.append({"url": request.full_url, **json.loads(request.data)})
+        return Response(b'{"ok": true}')
+
+    monkeypatch.setattr(notify.urllib.request, "urlopen", fake_urlopen)
+    return sent

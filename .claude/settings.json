@@ -22,7 +22,25 @@
       "Bash(rm -rf:*)",
       "Read(./.env)",
       "Read(**/.env)",
-      "Bash(cat .env:*)"
+      "Bash(cat .env:*)",
+      "Bash(prefect flow-run resume:*)",
+      "Bash(uv run prefect flow-run resume:*)",
+      "Bash(.venv/bin/prefect flow-run resume:*)",
+      "Bash(~/projects/lab-runtime/.venv/bin/prefect flow-run resume:*)",
+      "Bash(/home/thovicheka/projects/lab-runtime/.venv/bin/prefect flow-run resume:*)",
+      "Bash(/home/thovicheka/projects/cloud-ai-lab/.venv/bin/prefect flow-run resume:*)",
+      "Bash(prefect deployment run:*)",
+      "Bash(uv run prefect deployment run:*)",
+      "Bash(.venv/bin/prefect deployment run:*)",
+      "Bash(~/projects/lab-runtime/.venv/bin/prefect deployment run:*)",
+      "Bash(/home/thovicheka/projects/lab-runtime/.venv/bin/prefect deployment run:*)",
+      "Bash(/home/thovicheka/projects/cloud-ai-lab/.venv/bin/prefect deployment run:*)",
+      "Bash(*prefect flow-run resume*)",
+      "Bash(*prefect deployment run*)",
+      "Bash(*resume_flow_run*)",
+      "Bash(*run_deployment*)",
+      "Bash(*/flow_runs/*/resume*)",
+      "Bash(*/deployments/*/create_flow_run*)"
     ]
   }
 }
