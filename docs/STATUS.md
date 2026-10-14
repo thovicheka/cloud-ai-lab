@@ -483,6 +483,25 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
 
+## 3.1 — W&B account
+- **Branch:** recorded on `task/3.2-wandb-template` (3.1 is a 🧑 task; no code)
+- **State:** done (2026-10-14, by the human). Ticked in ROADMAP.
+- **Done:** W&B account; `WANDB_API_KEY` in `.env` on the server; Modal secret `wandb` created.
+- **Next:** 3.2.
+- **Human must:** nothing.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Check the Modal secret exists** (read-only; `.env` itself isn't read, per CLAUDE.md)
+```console
+$ uv run modal secret list
+┃ Name  ┃ Created at           ┃ Created by   ┃ Last used at         ┃
+│ wandb │ 2026-10-14 07:15 UTC │ <workspace>  │ -                    │
+│ r2    │ 2026-10-14 04:45 UTC │ <workspace>  │ 2026-10-14 05:07 UTC │
+```
+**Result:** ✅ The `.env` key is as reported by the human.
+</details>
+
 ## 2.6 — Doc gaps (not a ROADMAP task; asked for directly)
 - **Branch:** `task/2.6-doc-gaps` (from `main` after #10)
 - **State:** done, waiting for the human's review and merge
