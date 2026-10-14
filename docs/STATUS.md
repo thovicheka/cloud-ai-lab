@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-14: 3.2 recorded, 3.3 done (branch `task/3.3-document-stage-3`, from `main` after #12). Stopping here.** The human's crash + resume run with W&B passed: one W&B run (`hy7wqqht`) across both runs, resumed at step 1000, final test loss 0.0240 / acc 99.29%. The human checked wandb.ai and Telegram (details under 3.2). 3.2 and 3.3 ticked in ROADMAP. `docs/03-experiment-tracking.md` written, README row and status line updated. **Stage 3 is complete** once this is merged. No money spent by the agent; the agent only ran `rclone ls` (read-only) and offline tests. **Human must:** review and merge `task/3.3-document-stage-3`. Nothing else.
+
 **Run of 2026-10-14: 3.1 recorded, 3.2 written (branch `task/3.2-wandb-template`). Stopping here.** 3.1 ticked (the `wandb` secret exists). 3.2: `jobs/train_template.py` logs to W&B (project `cloud-ai-lab`, run name = `--run-name`), resumed runs continue the same W&B run, and training still works without a key. 4 new tests (37 total) ✅. Not run on Modal. **Human must:** run the two commands under 3.2 (~$0.05 from free credits), check the W&B page, then review and merge.
 
 **Run of 2026-10-14: doc gaps (branch `task/2.6-doc-gaps`). Done; stopping here.** `.claude/settings.json` now also denies `uv run modal run/deploy/serve`. The Stage 2 doc has the real spend-limit path and `modal token new` output. The Stage 6 doc has the real `--test` result and says ⏹️ Stopped is untested. The README status line says Stages 0, 1, 2, 6 are done and Stage 3 (W&B) is next. **Human must:** review and merge `task/2.6-doc-gaps`. Nothing else.
@@ -485,18 +487,54 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
 
+## 3.3 — Document Stage 3
+- **Branch:** `task/3.3-document-stage-3` (from `main` after #12; also carries the 3.2 run record)
+- **State:** done, waiting for the human's review and merge
+- **Done:** `docs/03-experiment-tracking.md` (STYLE.md shape: goal, placeholders, prerequisites, 6 steps, verify, known limits, files). It covers the account, the API key, `.env`, the `wandb` Modal secret (with the "Skipping W&B?" note: create `wandb` with only `WANDB_MODE=disabled`, or training jobs won't start), the crash + resume run, adding W&B to a new job, and what the template logs. Real output comes from 3.1's `modal secret list` and 3.2's runs. README Stage 3 row → the doc; README status line: Stages 0–3 and 6 done, next Stage 4. 3.2 and 3.3 ticked in ROADMAP.
+- **Not verified:** the "Skipping W&B?" path on Modal (the real secret exists). Modal's exact missing-secret error comes from its server, so the doc describes it without quoting it.
+- **Next:** nothing.
+- **Human must:** review and merge.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Branch from `main` after #12**
+```console
+$ git fetch -q origin && git log --oneline HEAD..origin/main   # on task/3.2-wandb-template
+4761cc6 Merge pull request #12 from thovicheka/task/3.2-wandb-template
+$ git switch -c task/3.3-document-stage-3 origin/main
+Switched to a new branch 'task/3.3-document-stage-3'
+```
+**Result:** ✅ `task/3.2-wandb-template` was already fully merged (no commits missing from `main`), so the new branch starts from `main` and needs no rebase or merge.
+
+**2. Check doc claims against the repo**
+```console
+$ uv run pytest -q
+37 passed in 6.57s
+$ uv run pytest -q --co tests/test_tracking.py
+4 tests collected in 0.00s
+$ sed -n '10,15p' pyproject.toml
+[dependency-groups]
+dev = [
+    "moto[s3]>=5.2.4",
+    "pytest>=9.1.1",
+    "wandb==0.30.0",
+]
+```
+**Result:** ✅ test counts and the `wandb` pin match the doc. Config keys, `LOG_EVERY = 50`, `N_SAMPLES = 16`, and the Telegram note were read from `jobs/train_template.py`.
+</details>
+
 ## 3.2 — Log the template to W&B
-- **Branch:** `task/3.2-wandb-template` (from `main` after #11; also carries the 3.1 record)
-- **State:** blocked: code written and tested offline; "done when" (charts on wandb.ai) needs a real run by the human
+- **Branch:** `task/3.2-wandb-template` (from `main` after #11; also carries the 3.1 record). Merged as #12. The run below is recorded on `task/3.3-document-stage-3`.
+- **State:** done (2026-10-14). The human's crash + resume run passed and the human checked wandb.ai and Telegram. Ticked in ROADMAP.
 - **Done:**
   - `lab/tracking.py`: `start_run(name, config, run_id=None)` starts or resumes (`resume="allow"`) a run in project `cloud-ai-lab`. No `WANDB_API_KEY` → prints `warning: WANDB_API_KEY not set; W&B logging is off for this run` and returns a disabled run that accepts every call. `run_id()` returns the id to store (a disabled run's id is random, so the checkpoint's is kept). `run_url()`.
   - `jobs/train_template.py`: uses the `wandb` secret; image adds `wandb==0.30.0` (released 2026-09-09). Logs config (+ project, GPU, R2 checkpoint folder), `train/loss` and `train/acc` every 50 steps, and `test/loss`, `test/acc`, `best_test_loss`, and 16 test images captioned `pred N / true M` at each checkpoint. Summary gets `best_test_loss` and `checkpoints`. The W&B run id is saved in the checkpoint as `wandb_id`; old checkpoints without it still load. On a crash the W&B run is closed as failed. The result and the Telegram Finished message include the W&B URL.
   - Train points are held until the next checkpoint and logged just before it's saved. W&B then never has steps past the last checkpoint, so a resumed run logs the redone steps (1001–1100 in the crash test) once, not twice.
   - `tests/test_tracking.py`: 4 tests (W&B offline, nothing sent). `.env.example`: `WANDB_API_KEY`. `wandb` added as a dev dependency (tests only).
 - **Not tested:** the training loop with W&B (no torch here; CLAUDE.md forbids local training) and resuming against the real W&B server (offline mode keeps the id but doesn't upload). The first Modal run is their first real test.
-- **Next:** the human runs it (below).
-- **Human must:**
-  1. Run the crash/resume test with a new run name (from the repo root, on the server):
+- **Next:** nothing.
+- **Human must:** nothing. The steps below are kept as a record.
+  1. ✅ Run the crash/resume test with a new run name (from the repo root, on the server):
      ```bash
      modal run jobs/train_template.py --run-name wandb-1 --crash-at-step 1100
      modal run jobs/train_template.py --run-name wandb-1
@@ -563,7 +601,76 @@ $ uv run pytest -q
 ```
 **Result:** ✅
 
-**5. Run on Modal with W&B:** not done. Needs the human (`modal run` costs money).
+**5. Run on Modal with W&B** (run by the human, 2026-10-14; output trimmed)
+
+The first attempt used a short flag:
+```console
+$ modal run jobs/train_template.py --run wandb-1 --crash-at-step 1100
+Error: No such option '--run'. Did you mean '--run-name'?
+```
+**Result:** ❌
+- **Error:** `No such option '--run'`.
+- **Cause:** typo. The flag is `--run-name`.
+- **Fix:** the full flag. The CLI rejected the command before contacting Modal, so nothing was billed.
+
+Crash run:
+```console
+$ modal run jobs/train_template.py --run-name wandb-1 --crash-at-step 1100
+Building image im-...
+=> Step 2: RUN /.uv/uv pip install ... boto3==1.43.112 numpy==2.5.3 torch==2.14.1 torchvision==0.29.1 wandb==0.30.0
+...
+Built image im-... in 16.91s
+...
+no checkpoint at mnist/checkpoints/wandb-1/latest.pt; starting from step 0
+wandb: Currently logged in as: vicheese (vicheese-cloud-ai-lab) to https://api.wandb.ai. ...
+wandb: Syncing run wandb-1
+W&B: https://wandb.ai/vicheese-cloud-ai-lab/cloud-ai-lab/runs/hy7wqqht
+step   500/3000  train loss 0.0444  test loss 0.0504  test acc 0.9835  saved latest + best
+step  1000/3000  train loss 0.0101  test loss 0.0364  test acc 0.9875  saved latest + best
+wandb: uploading history steps 0-19, summary, console lines 0-2
+...
+wandb: Synced 5 W&B file(s), 32 media file(s), 0 artifact file(s) and 0 other file(s)
+...
+RuntimeError: simulated crash at step 1100 (--crash-at-step)
+```
+**Result:** ✅ The crash is intended. 20 history steps = train points 50–1000; steps 1050/1100 were held back (after the last checkpoint), as designed.
+
+Checkpoints in R2 between the two runs (read-only check by the agent):
+```console
+$ rclone ls r2:cloud-ai-lab/mnist/checkpoints/wandb-1/
+  5074261 best.pt
+  5074261 latest.pt
+```
+**Result:** ✅ exactly two objects.
+
+Resume run:
+```console
+$ modal run jobs/train_template.py --run-name wandb-1
+resumed mnist/checkpoints/wandb-1/latest.pt at step 1000 (best test loss 0.0364)
+wandb: Resuming run wandb-1
+W&B: https://wandb.ai/vicheese-cloud-ai-lab/cloud-ai-lab/runs/hy7wqqht
+step  1500/3000  train loss 0.0060  test loss 0.0275  test acc 0.9903  saved latest + best
+step  2000/3000  train loss 0.0301  test loss 0.0281  test acc 0.9906  saved latest
+step  2500/3000  train loss 0.0044  test loss 0.0279  test acc 0.9901  saved latest
+step  3000/3000  train loss 0.0014  test loss 0.0240  test acc 0.9929  saved latest + best
+...
+wandb: Synced 5 W&B file(s), 64 media file(s), 0 artifact file(s) and 0 other file(s)
+            run: wandb-1
+ steps_this_run: 2000
+   resumed_from: 1000
+ best_test_loss: 0.024
+  train_seconds: 26.8
+    checkpoints: r2:cloud-ai-lab/mnist/checkpoints/wandb-1/
+          wandb: https://wandb.ai/vicheese-cloud-ai-lab/cloud-ai-lab/runs/hy7wqqht
+Stopping app - local entrypoint completed.
+```
+**Result:** ✅ The same W&B run id `hy7wqqht` in both runs ("Resuming run wandb-1"). Resumed at step 1000; test loss 0.0240, acc 99.29%; 26.8 s of training. Estimated cost ~$0.01–0.02 per run (T4 at $0.000164/s), from free credit.
+
+**6. Checked on wandb.ai and Telegram** (reported by the human, 2026-10-14)
+- wandb.ai: run `wandb-1` has continuous charts 0–3000. `test/samples` shows digit images with predicted/true captions. The config shows the checkpoint path.
+- Telegram: ▶️ Started, ❌ Failed, ▶️ Started, ✅ Finished; the Finished message has the W&B link.
+
+**Result:** ✅ "done when" (a run shows charts on wandb.ai) met.
 </details>
 
 ## 3.1 — W&B account
