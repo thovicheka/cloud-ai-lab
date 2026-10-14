@@ -638,8 +638,8 @@ fatal: 'main' is already used by worktree at '/home/thovicheka/projects/lab-runt
   - 4.4 (`docs/04-job-queue.md`) should include the worktree and the update routine.
 
 ## 4.2 — Set up Prefect (self-hosted)
-- **Branch:** `task/4.2-prefect-setup`
-- **State:** blocked on 🧑 `sudo` install. Agent work done; memory to be measured on the installed services.
+- **Branch:** `task/4.2-prefect-setup` (merged, #15); install recorded on `task/4.2-record-install`
+- **State:** done. Both services installed and running; `hello` ran **Completed** through them.
 - **Done:**
   - 4.1 ticked; the pick (self-hosted) recorded in `decisions.md`, the design doc, and ROADMAP.
   - `uv add prefect` → 3.8.8 in `pyproject.toml` / `uv.lock`. 37 existing tests still pass.
@@ -648,8 +648,12 @@ fatal: 'main' is already used by worktree at '/home/thovicheka/projects/lab-runt
   - `flows/hello.py`: a free smoke-test flow (no Modal) to check that the worker runs flows.
   - CLI profile on `lab` switched to `local` (`PREFECT_API_URL=http://127.0.0.1:4200/api`, `PREFECT_UI_URL=http://lab:4200`), so `prefect` commands talk to the service and never start a throwaway server.
   - Dry run of the exact `ExecStart` commands by hand (localhost only, port 4210, throwaway Prefect home in the scratchpad, now stopped): server healthy in 10 s, worker created pool `lab`, `hello` ran **Completed** twice. Memory: server **~245 MB**, worker **~97 MB** idle / **~186 MB** while running a flow. Details below.
-- **Next:** after the human installs and pastes the output: register `hello`, run it on the real services, measure `free -h` and each service's RSS, record it here and in the design doc's memory section.
-- **Human must:** run the commands below *(on the server)*, in order, then paste the output. Nothing costs money.
+  - 🧑 Human installed both units on `main` (all ✅): both `active (running)`, `/api/health` → `true`, UI opens on the laptop, pool `lab` **Ready**.
+  - 🤖 `hello` deployed to pool `lab` and run once through the installed services: **Completed** in ~4 s. Memory on the real services: server **~235 MB**, worker **~79 MB** idle, **157 MB** peak while running `hello`; `free -h` shows **1.7 GiB available**, swap unused. 4.2 ticked in ROADMAP.
+- **Next:** 4.3 (wrap the Modal jobs in flows).
+- **Human must:** review and merge `task/4.2-record-install`. Nothing else.
+
+<details><summary>Install steps the human ran (kept for reference)</summary>
 
 **Before you start:** stay on this branch (or merge it first). The services run the repo's `.venv`; a plain `uv sync` on a branch without Prefect would remove it from the venv (`uv run` doesn't).
 
@@ -698,6 +702,8 @@ sudo journalctl -u prefect-worker -n 20 --no-pager
 > **If you see** `status=203/EXEC` in step 6, **it means** `.venv/bin/prefect` is missing (e.g. after a `uv sync` on another branch). Run `uv sync` on this branch, then `sudo systemctl restart prefect-server prefect-worker`.
 >
 > **If you see** the dashboard load but say it can't reach the API, **it means** the browser can't resolve `lab`. Check that `ping lab` works from the laptop (Tailscale MagicDNS).
+
+</details>
 
 <details><summary>Example from this build</summary>
 
@@ -790,6 +796,80 @@ PREFECT_API_URL = "http://127.0.0.1:4200/api"
 PREFECT_UI_URL = "http://lab:4200"
 ```
 **Result:** ✅ the profile switched despite the connection error.
+</details>
+
+<details><summary>Example from this build: install on the real server</summary>
+
+**1–3. Copy the units, reload, enable** *(human, on `main` after #15)*
+```console
+$ sudo cp deploy/prefect-server.service deploy/prefect-worker.service /etc/systemd/system/
+$ sudo systemctl daemon-reload
+$ sudo systemctl enable --now prefect-server.service
+Created symlink ... → /etc/systemd/system/prefect-server.service.
+$ sudo systemctl enable --now prefect-worker.service
+Created symlink ... → /etc/systemd/system/prefect-worker.service.
+```
+**Result:** ✅ both files in `/etc/systemd/system/`.
+
+**4. Status and logs** *(human)*
+```console
+$ systemctl status prefect-server prefect-worker --no-pager
+● prefect-server.service ... Active: active (running)   Memory: 229.7M (max: 700.0M)
+● prefect-worker.service ... Active: active (running)   Memory: 79.1M (max: 900.0M)
+$ sudo journalctl -u prefect-worker -n 20 --no-pager
+... Worker 'lab-worker' started!
+```
+**Result:** ✅
+
+**5. API and UI** *(human)*
+```console
+$ curl -s http://127.0.0.1:4200/api/health
+true
+```
+On the laptop, http://lab:4200 opens; **Work Pools → lab**: Status **Ready**, Type **Process**, Last Polled less than a minute ago. **Result:** ✅
+
+**6. Memory, idle** *(agent, ~7 min after start)*
+```console
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:           3.7Gi       1.9Gi       197Mi       4.8Mi       1.9Gi       1.8Gi
+Swap:          4.0Gi       512Ki       4.0Gi
+$ systemctl status prefect-server prefect-worker --no-pager | grep Memory
+     Memory: 234.7M (high: 500.0M max: 700.0M available: 265.2M peak: 235.2M)
+     Memory: 79.1M (high: 700.0M max: 900.0M available: 620.8M peak: 79.6M)
+```
+**Result:** ✅ ~314 MB for both, close to the dry run (~345 MB).
+
+**7. Deploy `hello` to pool `lab` and run it once** *(agent, CPU only, no Modal)*
+```console
+$ uv run python flows/hello.py
+│ hello/hello │ applied │
+$ uv run prefect deployment run hello/hello --watch
+Created flow run 'mutant-trogon'.
+└── URL: http://lab:4200/runs/flow-run/bffd5c93-...
+● 16:40:27.839 prefect.flow-run.Pending * mutant-trogon
+●         .883 prefect.worker.submitted-flow-run * lab-worker
+●      :29.071 prefect.flow-run.pull-step.executed
+●      :30.491 prefect.flow-run.Running * mutant-trogon
+●         .556 prefect.flow-run.Completed * mutant-trogon
+Flow run finished successfully in 'Completed'.
+$ uv run prefect flow-run logs bffd5c93-...
+... Executing deployment step: set_working_directory
+... Hello from lab (ubuntu-4gb-sin-2, Python 3.12.3)
+... Finished in state Completed()
+```
+**Result:** ✅ the installed worker picked it up within ~2 s; done ~4 s after creation.
+
+**8. Memory, after the run**
+```console
+$ systemctl status prefect-server prefect-worker --no-pager | grep Memory
+     Memory: 236.6M (high: 500.0M max: 700.0M available: 263.3M peak: 237.1M)
+     Memory: 84.8M (high: 700.0M max: 900.0M available: 615.1M peak: 157.4M)
+$ free -h
+Mem:           3.7Gi       2.0Gi       178Mi       4.8Mi       1.9Gi       1.7Gi
+Swap:          4.0Gi       512Ki       4.0Gi
+```
+**Result:** ✅ worker peaked at 157 MB with one flow run (dry run: ~186 MB), well under `MemoryHigh=700M`. 1.7 GiB still available.
 </details>
 
 - **Noticed, not done (out of scope):**
