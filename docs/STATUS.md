@@ -4,6 +4,10 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**2.3, 2.4, 6.1, 6.2 done (2026-10-14).** The resume test passed: the crash run saved at steps 500 and 1000 and died at 1100; the second run printed `resumed mnist/checkpoints/try-1/latest.pt at step 1000` and finished at step 3000 (test acc 0.9933). R2 holds exactly `best.pt` and `latest.pt`. Telegram sent Started, Failed, and Finished. All four ticked in ROADMAP. Next: 2.5 and 6.3 (docs).
+
+**2.1 and 2.2 done (2026-10-14).** The human finished 2.1 (Modal account, token, spending limit **$0**: free credits only) and re-ran `hello_gpu.py` after the fix: ✅ Tesla T4, 3.84 TFLOPS, 9 s, ~$0.00. Both ticked in ROADMAP. With a $0 limit, jobs stop when the monthly free credit runs out instead of billing. Next: 2.4's resume test (see 2.4).
+
 **Fix of 2026-10-14, second (branch `task/2.4-fix-ckpt-dir`).** The human's first `modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100` failed at the first save (step 500) with `RuntimeError: Parent directory /tmp/ckpt does not exist.` Cause: `/tmp/ckpt` was only created when a checkpoint was restored, and a fresh run has none. Fixed in the template and in `RunCheckpoints.restore()`, with a new test. **Retries:** the logs show one attempt and no retry; all three jobs now set `retries=0` explicitly (Modal's default). **Human must:** merge this branch, then re-run 2.4's two commands (~$0.05). Details under 2.4.
 
 **Fix of 2026-10-14 (branch `task/2.2-fix-return-types`).** The human's first `modal run jobs/hello_gpu.py` got a Tesla T4 but failed returning the result (`DeserializationError`: `torch` not available locally). Cause: the result held `torch.__version__`, a `TorchVersion` object, not a `str`. Fixed in `hello_gpu.py`; `train_template.py` now casts its results too; `r2_hello.py` was already fine. Images now include `numpy`, and the install command is `uv tool install modal --with python-dotenv`. **Human must:** merge this branch, then re-run `modal run jobs/hello_gpu.py` (< $0.05). Details under 2.2.
@@ -14,10 +18,10 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 | Task | Agent work | Tested | Blocked on |
 |---|---|---|---|
-| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | GPU run ❌ (result type), fixed; re-run needed | a re-run after merging `task/2.2-fix-return-types` |
-| 2.3 R2 from Modal | `lab/storage.py`, `jobs/r2_hello.py`, `.env.example` | 10 tests vs fake S3 ✅ | 2.1, `r2` secret, a CPU run |
-| 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | GPU run ❌ at the first save (`/tmp/ckpt` missing), fixed; checkpoint logic: 7 tests ✅ | re-run after merging `task/2.4-fix-ckpt-dir` |
-| 6.2 Notifier | `lab/notify.py`, wired into all jobs | 16 tests vs fake Telegram ✅; self-test unconfigured ✅ | 6.1 |
+| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | GPU run ❌ (result type), fixed; re-run ✅ Tesla T4 | nothing: done |
+| 2.3 R2 from Modal | `lab/storage.py`, `jobs/r2_hello.py`, `.env.example` | 10 tests vs fake S3 ✅; real run ✅ | nothing: done |
+| 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | GPU run ❌ (`/tmp/ckpt` missing), fixed; resume test ✅; 7 tests ✅ | nothing: done |
+| 6.2 Notifier | `lab/notify.py`, wired into all jobs | 16 tests vs fake Telegram ✅; real Started / Failed / Finished ✅ | nothing: done |
 
 **What the human does, in order** (details under each task below; run everything on the server from `~/projects/cloud-ai-lab`):
 1. **2.1:** sign up at modal.com, **set a monthly spending limit**, then `uv tool install modal --with python-dotenv` and `modal token new`.
@@ -94,12 +98,12 @@ Permission to use Bash with command rm -rf ./does-not-exist-deny-test has been d
 
 ## 2.2 — Hello-GPU job
 - **Branch:** `task/2.2-hello-gpu`
-- **State:** blocked: the first GPU run (by the human, 2026-10-14) reached the T4 but failed returning its result; fixed on `task/2.2-fix-return-types`, waiting for review and a re-run
+- **State:** done (2026-10-14). The first GPU run failed returning its result; fixed on `task/2.2-fix-return-types` (merged); the re-run passed. Ticked in ROADMAP, with 2.1.
 - **Fix branch:** `task/2.2-fix-return-types`: plain Python types in the returned dicts (`hello_gpu.py`, `train_template.py`), `numpy==2.5.3` in the torch images, ROADMAP 2.1 install command now `uv tool install modal --with python-dotenv`.
 - **Done:** `uv` project (`pyproject.toml`, `uv.lock`, Python 3.12, `modal` 1.6.1). `jobs/hello_gpu.py`: a T4 function that prints `nvidia-smi`, times a 4096×4096 PyTorch matmul, and returns GPU name, torch/CUDA versions, ms and TFLOPS. 5-minute hard timeout. Cost estimate in the file's docstring.
-- **Next:** the human merges `task/2.2-fix-return-types` and re-runs step 2 below.
-- **Human must:**
-  1. Finish **2.1** (done: the first run reached Modal): sign up for Modal, **set a monthly spending limit**, then on the server:
+- **Next:** nothing.
+- **Human must:** nothing. The steps below are kept as a record.
+  1. ✅ **2.1** (done 2026-10-14; spending limit set to **$0**, free credits only): sign up for Modal, **set a monthly spending limit**, then on the server:
      ```bash
      uv tool install modal --with python-dotenv   # the `modal` command; --from-dotenv needs python-dotenv
      modal token new          # opens a login link; writes ~/.modal.toml
@@ -199,16 +203,31 @@ modal v1.6.1 [with: python-dotenv]
 - modal
 ```
 
-**9. Re-run on the GPU:** not done. Needs the human (`modal run` costs money).
+**9. Re-run on the GPU** (run by the human on 2026-10-14, after merging `task/2.2-fix-return-types`; result as reported by the Telegram notifier)
+```console
+$ modal run jobs/hello_gpu.py
+...
+```
+Telegram:
+```text
+✅ Finished: hello-gpu in 0m 09s, ~$0.00 on T4
+Tesla T4: 3.84 TFLOPS
+```
+**Result:** ✅ the GPU name came back (Tesla T4), the result reached the server, and the job stopped by itself. This meets 2.2's "done when".
+- **Cost:** 9 s at $0.000164/s ≈ **$0.0015**, under the < $0.05 estimate (that allowed for the first image build). Paid from free credits.
+- **Speed:** 3.84 TFLOPS on a 4096×4096 FP32 matmul, about half of a T4's ~8 TFLOPS FP32 peak. Plausible for one untuned matmul timed once.
+- **Also confirmed:** the Telegram notifier sends a real Finished message (6.1's bot works).
+
+**2.1 confirmed by the human:** Modal account created, `modal token new` succeeded, spending limit set to **$0**: jobs run on the free monthly credit only and stop when it runs out instead of billing.
 </details>
 
 ## 2.3 — R2 from Modal
 - **Branch:** `task/2.3-modal-r2` (built on `task/2.2-hello-gpu`; merge 2.2 first)
-- **State:** blocked: code written and tested offline; the real run needs 2.1 and the Modal secret
+- **State:** done (2026-10-14). The human created the `r2` secret and ran the job; the file landed in R2. Ticked in ROADMAP.
 - **Done:** `lab/storage.py` (`r2_key`, `upload`, `download`, `list_keys`, `exists`; credentials from env vars; keys laid out as `<project>/<datasets|checkpoints|runs>/...`). `jobs/r2_hello.py`: a CPU-only Modal job that writes `hello/runs/<UTC stamp>/hello.txt` and lists it. 10 tests in `tests/test_storage.py` against an in-memory fake S3 (moto). `.env.example` with the R2 keys.
-- **Next:** the human adds the secret and runs the job (below).
-- **Human must:**
-  1. Finish **2.1** (see 2.2).
+- **Next:** nothing.
+- **Human must:** nothing. The steps below are kept as a record.
+  1. ✅ Finish **2.1** (see 2.2).
   2. Create `.env` from `.env.example` and fill in the R2 values (the same endpoint and token as the rclone `r2` remote):
      ```bash
      cp .env.example .env && chmod 600 .env && nano .env
@@ -271,18 +290,33 @@ $ uv run modal secret create --help
 ```
 **Result:** ✅ `--from-dotenv` loads *every* key in the file, so the human's command feeds it only the `R2_` lines.
 
-**5. Write to real R2 from Modal:** not done. Needs 2.1, the secret, and the human.
+**5. Write to real R2 from Modal** (run by the human on 2026-10-14; container log and checks fetched afterwards, read-only)
+```console
+$ modal run jobs/r2_hello.py
+...
+$ uv run modal app logs ap-kErl***
+ + boto3==1.43.112
+...
+Built image im-*** in 4.75s
+uploaded r2:cloud-ai-lab/hello/runs/20261014T045622Z/hello.txt
+Stopping app - local entrypoint completed.
+$ rclone ls r2:cloud-ai-lab/hello/runs/
+       53 20261014T045622Z/hello.txt
+$ uv run modal secret list
+│ Name │ Created at           │ ...
+│ r2   │ 2026-10-14 04:45 UTC │ ...
+```
+**Result:** ✅ a Modal container wrote to R2 with the `r2` secret, and the file is visible from the server with rclone.
 </details>
 
 ## 2.4 — Checkpointed training template
 - **Branch:** `task/2.4-train-template` (built on `task/2.3-modal-r2`; merge 2.2 → 2.3 → 2.4)
-- **State:** blocked: the first GPU run (by the human, 2026-10-14) trained to step 500, then failed at the first save; fixed on `task/2.4-fix-ckpt-dir`, waiting for review and a re-run
+- **State:** done (2026-10-14). The first GPU run failed at the first save; fixed on `task/2.4-fix-ckpt-dir` (merged); the resume test then passed. Ticked in ROADMAP.
 - **Fix branch:** `task/2.4-fix-ckpt-dir`: the template creates `/tmp/ckpt` before restoring or saving; `RunCheckpoints.restore()` now always creates its target folder, so a copied template can't hit this; new test `test_fresh_run_can_save_to_a_missing_folder`; `retries=0` set explicitly on all three jobs.
 - **Done:** `lab/checkpoints.py` (`RunCheckpoints`: `latest.pt` + `best.pt` per run, overwritten in place, so only 2 objects ever; `restore()` for resuming). `jobs/train_template.py`: small CNN on MNIST (T4); evaluates and checkpoints every 500 steps; resumes weights, optimizer, step, best loss, RNG and data position from `latest.pt`; `--crash-at-step N` simulates a lost GPU. 6 new tests in `tests/test_checkpoints.py` (16 total).
-- **Not tested:** the training loop itself. CLAUDE.md forbids local training and torch isn't installed here, so the first Modal run is its first real test.
-- **Next:** the human merges `task/2.4-fix-ckpt-dir` and runs the resume test (below).
-- **Human must:**
-  1. Finish 2.1 and 2.3's secret.
+- **Next:** nothing.
+- **Human must:** nothing. The steps below are kept as a record.
+  1. ✅ Finish 2.1 and 2.3's secret.
   2. Crash on purpose, then resume (from the repo root):
      ```bash
      modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100   # dies after saving step 1000
@@ -382,16 +416,56 @@ max_delay_ms: 60000
 ```
 **Result:** ✅ The new test fails without the fix and passes with it. `retries=0` is valid; the policy's `retries` field is 0, so it isn't printed. All three jobs still load.
 
-**8. Re-run on the GPU and resume test:** not done. Needs the human (`modal run` costs money).
+**8. Resume test on the GPU** (run by the human on 2026-10-14, after merging `task/2.4-fix-ckpt-dir`; container logs fetched afterwards with `modal app logs`, download progress and traceback frames removed)
+
+Crash run:
+```console
+$ modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100
+...
+no checkpoint at mnist/checkpoints/try-1/latest.pt; starting from step 0
+step   500/3000  train loss 0.0476  test loss 0.0499  test acc 0.9834  saved latest + best
+step  1000/3000  train loss 0.0118  test loss 0.0373  test acc 0.9876  saved latest + best
+Traceback (most recent call last):
+RuntimeError: simulated crash at step 1100 (--crash-at-step)
+Stopping app - uncaught exception raised locally: RuntimeError('simulated crash at step 1100 (--crash-at-step)').
+```
+Telegram: ▶️ Started, then ❌ Failed.
+
+**Result:** ✅ (the crash is the point) saved at 500 and 1000, then died at 1100. The `/tmp/ckpt` fix works.
+
+Resume run (same `--run-name`, no crash flag):
+```console
+$ modal run jobs/train_template.py --run-name try-1
+...
+resumed mnist/checkpoints/try-1/latest.pt at step 1000 (best test loss 0.0373)
+step  1500/3000  train loss 0.0091  test loss 0.0290  test acc 0.9895  saved latest + best
+step  2000/3000  train loss 0.0231  test loss 0.0281  test acc 0.9910  saved latest + best
+step  2500/3000  train loss 0.0140  test loss 0.0231  test acc 0.9921  saved latest + best
+step  3000/3000  train loss 0.0028  test loss 0.0217  test acc 0.9933  saved latest + best
+Stopping app - local entrypoint completed.
+```
+Result (as printed locally, reported by the human): finished at step 3000, `best_test_loss: 0.0217`, `train_seconds: 23.2`. Telegram: ✅ Finished.
+
+**Result:** ✅ it resumed at step 1000 instead of starting over, which is 2.4's "done when". The best loss carried over (0.0373) and kept improving.
+
+R2 afterwards:
+```console
+$ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
+  5074197 best.pt
+  5074197 latest.pt
+```
+**Result:** ✅ exactly two objects for the run. They're the same size because the last save was also the best one.
+
+**Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
 
 ## 6.2 — Notifier
 - **Branch:** `task/6.2-notifier` (built on `task/2.4-train-template`; merge 2.2 → 2.3 → 2.4 → 6.2)
-- **State:** blocked: code written and tested with a fake Telegram API; real messages need 6.1
+- **State:** done (2026-10-14). 6.1 done by the human (bot token and chat ID in `.env`); real jobs sent Started, Failed, and Finished. 6.1 and 6.2 ticked in ROADMAP.
 - **Done:** `lab/notify.py`: `notify(text)` sends to Telegram, and the `notify_job(name, gpu=...)` context manager sends ▶️ Started / ✅ Finished / ❌ Failed / ⏹️ Stopped with duration and estimated GPU cost. It never raises: unconfigured or unreachable Telegram prints a warning and the job carries on. Errors never print the token. Standard library only. All three jobs (`hello_gpu`, `r2_hello`, `train_template`) wrap their remote call with it in the local entrypoint, which runs on the server, so Modal needs no Telegram secret. 16 new tests (32 total). Telegram keys added to `.env.example`.
-- **Next:** the human sets up the bot (6.1) and runs the free self-test.
-- **Human must:**
-  1. Finish **6.1**: create a bot with @BotFather (`/newbot`), then send your bot any message (bots can't message you first). Get your chat ID from @userinfobot. Add both to `.env` (keys in `.env.example`).
+- **Next:** nothing.
+- **Human must:** nothing. The steps below are kept as a record.
+  1. ✅ Finish **6.1**: create a bot with @BotFather (`/newbot`), then send your bot any message (bots can't message you first). Get your chat ID from @userinfobot. Add both to `.env` (keys in `.env.example`).
   2. Free test, no GPU or Modal (runs a fake job that finishes and one that fails):
      ```bash
      uv run python -m lab.notify --test
@@ -441,7 +515,14 @@ $ echo $?
 ```
 **Result:** ✅ The job flow completes, and the messages print instead of being sent.
 
-**5. Known limits**
+**5. Real messages from real jobs** (reported by the human, 2026-10-14)
+- `hello_gpu` re-run: `✅ Finished: hello-gpu in 0m 09s, ~$0.00 on T4` / `Tesla T4: 3.84 TFLOPS`
+- `train_template --crash-at-step 1100`: ▶️ Started, then ❌ Failed
+- `train_template` resume: ✅ Finished
+
+**Result:** ✅ all three kinds of message arrived from real Modal jobs, which is 6.2's "done when".
+
+**6. Known limits**
 - Duration is measured on the server and includes container start-up, so the cost slightly overestimates GPU time. CPU and memory charges (a few %) aren't counted.
 - Untested until a real run: whether `modal run` delivers Ctrl-C to the entrypoint as `KeyboardInterrupt` (→ ⏹️ Stopped), or cancels it some other way (then no stop message).
 - With `modal run --detach`, if the server-side client exits, the job keeps going but no Finished message arrives. Stage 4 (Prefect) is the place to fix that.

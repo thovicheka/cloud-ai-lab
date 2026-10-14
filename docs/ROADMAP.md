@@ -69,21 +69,21 @@ Separate repo: `~/projects/ai-news` (its own GitHub repo and its own `CLAUDE.md`
 
 ## Stage 2 — GPU compute (Modal)
 
-- [ ] **2.1 Modal account and limits** — 🧑
+- [x] **2.1 Modal account and limits** — 🧑
   - 🧑 Sign up with the project GitHub account; **set a monthly spending limit**; `uv tool install modal --with python-dotenv` (`modal secret create --from-dotenv` needs it); `modal token new`.
   - **Done when:** `modal token new` reports success on the server.
 
-- [ ] **2.2 Hello-GPU job** — 🤖 (🧑 runs it)
+- [x] **2.2 Hello-GPU job** — 🤖 (🧑 runs it)
   - 🤖 Write `jobs/hello_gpu.py`: a Modal function on the cheapest GPU that prints `nvidia-smi` and a tiny PyTorch matmul. Estimate the cost.
   - 🧑 Run `modal run jobs/hello_gpu.py`.
   - **Done when:** output shows the GPU name and the job stops by itself.
 
-- [ ] **2.3 R2 from Modal** — 🤖 + 🧑
+- [x] **2.3 R2 from Modal** — 🤖 + 🧑
   - 🧑 Store the R2 keys as a Modal secret (`modal secret create r2 ...`).
   - 🤖 Shared helper `lab/storage.py` (upload/download/list with `boto3`, paths per CLAUDE.md conventions); a job that writes a file to R2.
   - **Done when:** the file appears in `r2:cloud-ai-lab/...`.
 
-- [ ] **2.4 Checkpointed training template** — 🤖 (🧑 runs it)
+- [x] **2.4 Checkpointed training template** — 🤖 (🧑 runs it)
   - 🤖 `jobs/train_template.py`: small model (e.g. MNIST), checkpoints to R2 every N steps, keeps best + latest only, **resumes from the latest checkpoint** if restarted.
   - 🧑 Run it, stop it mid-way, run again.
   - **Done when:** the second run resumes instead of starting over.
@@ -104,8 +104,8 @@ Separate repo: `~/projects/ai-news` (its own GitHub repo and its own `CLAUDE.md`
 
 (Separate from the AI News bot.)
 
-- [ ] **6.1 Bot token** — 🧑 Create a bot with @BotFather; put the token and your chat ID in `.env`.
-- [ ] **6.2 Notifier** — 🤖 `lab/notify.py`: `notify(text)` sends a message; call it on job start / finish / failure in the templates (with duration and estimated cost). **Done when:** a test job sends all three messages.
+- [x] **6.1 Bot token** — 🧑 Create a bot with @BotFather; put the token and your chat ID in `.env`.
+- [x] **6.2 Notifier** — 🤖 `lab/notify.py`: `notify(text)` sends a message; call it on job start / finish / failure in the templates (with duration and estimated cost). **Done when:** a test job sends all three messages.
 - [ ] **6.3 Document** — 🤖 → `docs/06-notifications.md`
 
 ---
