@@ -95,8 +95,8 @@ Separate repo: `~/projects/ai-news` (its own GitHub repo and its own `CLAUDE.md`
 ## Stage 3 — Experiment tracking (Weights & Biases)
 
 - [x] **3.1 W&B account** — 🧑 Sign up; store the API key as a Modal secret and in `.env`.
-- [ ] **3.2 Log the template** — 🤖 Add W&B to `train_template.py`: config, metrics, sample images/audio, link to the R2 checkpoint path. **Done when:** a run shows charts on wandb.ai.
-- [ ] **3.3 Document Stage 3** — 🤖 → `docs/03-experiment-tracking.md`
+- [x] **3.2 Log the template** — 🤖 Add W&B to `train_template.py`: config, metrics, sample images/audio, link to the R2 checkpoint path. **Done when:** a run shows charts on wandb.ai.
+- [x] **3.3 Document Stage 3** — 🤖 → `docs/03-experiment-tracking.md`
 
 ---
 
