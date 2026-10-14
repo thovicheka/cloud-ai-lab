@@ -488,11 +488,11 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 </details>
 
 ## 4.1 — Job queue design
-- **Branch:** `task/4.1-prefect-design`
-- **State:** done, waiting for the human's pick (🧑 step of 4.1)
+- **Branch:** `task/4.1-prefect-design` (merged); pick recorded on `task/4.2-prefect-setup`
+- **State:** done, ticked. 🧑 picked **A, self-hosted** (2026-10-14); recorded in `decisions.md` and the design doc.
 - **Done:** `docs/04-job-queue-design.md`: self-hosted Prefect server vs Prefect Cloud Hobby, side-by-side table, memory on this box (2.15 GB available now; A adds ~0.4–0.8 GB, B ~0.15–0.3 GB, **estimates**, not measured), how flows call Modal (flow on `lab`, ephemeral `app.run()` + `.remote()`), and the approval gate (`pause_flow_run` → Paused → Resume in the UI, 24 h timeout, Telegram message with cost). Recommendation: **self-hosted**. Prefect 3.8.8 (2026-10-06) is current.
 - **Next:** 4.2 (service files, `uv add prefect`, `decisions.md` entry) once the human picks.
-- **Human must:** pick **A. self-hosted** or **B. Prefect Cloud Hobby** (B also needs a Prefect Cloud account and API key later, in 4.2). Review and merge. No commands to run, no cost.
+- **Human must:** nothing.
 - **Noticed, not done (out of scope):**
   - The approval gate can be bypassed by anything with shell on `lab` (Prefect API `resume_flow_run`); 4.3 should add a deny rule for Prefect's resume command and 5.1 should decide agent credentials. Modal's $0 limit stays the backstop.
   - Memory figures are estimates; 4.2 should measure RSS after a day and a week and record it.

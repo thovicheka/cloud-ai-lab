@@ -37,6 +37,13 @@ Why each tool was picked, and what it was picked over. Updated as the build goes
 
 ## Job queue: Prefect
 - Gives jobs explicit states (queued, running, completed, failed), retries, and a UI, without a heavy setup.
+- **Self-hosted server on `lab` (over Prefect Cloud's free Hobby tier).** Picked 2026-10-14; full comparison in [04-job-queue-design.md](04-job-queue-design.md).
+  - No account or API key, and run data never leaves the box.
+  - No Hobby limits: 5 deployments and 7-day run history would bind once a few projects have training flows.
+  - Fits the 4 GB box (estimated ~0.4–0.8 GB for server + worker; measured in task 4.2).
+  - The UI is reachable over Tailscale only (`ufw` already allows `tailscale0`), so no firewall change.
+  - Cloud's main extra, the Modal push work pool, would run the whole flow on Modal and move `.env` and the approval wait off the server, against the Stage 2 design.
+  - **Trade-off:** we upgrade Prefect ourselves, and approving from a phone needs the Tailscale app. Moving to Cloud later is a `PREFECT_API_URL` change; flow code stays the same.
 
 ## Agents: start with two
 - A coordinator and a coding agent first; add more later. An agent is "a job description plus tools," so roles are cheap to add or change.
