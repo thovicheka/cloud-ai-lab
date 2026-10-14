@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
     "boto3>=1.43.112",
     "modal>=1.6.1",
+    "prefect>=3.8.8",
 ]
 
 [dependency-groups]

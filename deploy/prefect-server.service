@@ -1,0 +1,32 @@
+# Prefect server (API, UI, scheduler) for cloud-ai-lab. Runs on SQLite at ~/.prefect/prefect.db.
+# UI: http://lab:4200 from any Tailscale device. It listens on all interfaces; ufw allows
+# only tailscale0, so the internet can't reach it (docs/01-server-setup.md). No login on the UI.
+#
+# Install: see docs/STATUS.md, task 4.2 (sudo cp + systemctl enable --now).
+# Adapting: change User and the /home/thovicheka paths to yours.
+
+[Unit]
+Description=Prefect server for cloud-ai-lab (UI on :4200)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=thovicheka
+WorkingDirectory=/home/thovicheka/projects/cloud-ai-lab
+Environment=PREFECT_SERVER_API_HOST=0.0.0.0
+Environment=PREFECT_SERVER_API_PORT=4200
+# The browser on your laptop calls this; the default (127.0.0.1) would point at the laptop itself
+Environment=PREFECT_SERVER_UI_API_URL=http://lab:4200/api
+Environment=PREFECT_UI_URL=http://lab:4200
+Environment=PREFECT_SERVER_ANALYTICS_ENABLED=false
+ExecStart=/home/thovicheka/projects/cloud-ai-lab/.venv/bin/prefect server start
+Restart=on-failure
+RestartSec=5
+# Test run (task 4.2): ~245 MB idle. Above MemoryHigh the kernel reclaims memory; at MemoryMax
+# the process is killed and Restart= brings it back.
+MemoryHigh=500M
+MemoryMax=700M
+
+[Install]
+WantedBy=multi-user.target
