@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-14: 4.1 ticked (self-hosted picked), 4.2 set up (branch `task/4.2-prefect-setup`). Stopping here; waiting for the human.** Prefect 3.8.8 added with `uv`; `deploy/prefect-server.service` (UI at http://lab:4200 over Tailscale) and `deploy/prefect-worker.service` (work pool `lab`) written, not installed. A by-hand dry run on localhost worked: the `hello` flow ran Completed; server ~245 MB, worker ~97 MB idle. **Human must:** run the 9 steps under 4.2 (`sudo cp`, `daemon-reload`, two `enable --now`, checks), then paste the output; the agent then measures memory on the real services.
+
 **Run of 2026-10-14: 4.1 written (branch `task/4.1-prefect-design`). Stopping here; waiting for the human to pick.** `docs/04-job-queue-design.md` compares a self-hosted Prefect server with Prefect Cloud's free Hobby tier (memory, cost, `sudo`, accounts, calling Modal, approval gate) and **recommends self-hosted**. Nothing installed, no account created, no money spent. **Human must:** read the doc and pick A (self-hosted) or B (Cloud Hobby); then review and merge. 4.2 starts after the pick.
 
 **Run of 2026-10-14: 3.2 recorded, 3.3 done (branch `task/3.3-document-stage-3`, from `main` after #12). Stopping here.** The human's crash + resume run with W&B passed: one W&B run (`hy7wqqht`) across both runs, resumed at step 1000, final test loss 0.0240 / acc 99.29%. The human checked wandb.ai and Telegram (details under 3.2). 3.2 and 3.3 ticked in ROADMAP. `docs/03-experiment-tracking.md` written, README row and status line updated. **Stage 3 is complete** once this is merged. No money spent by the agent; the agent only ran `rclone ls` (read-only) and offline tests. **Human must:** review and merge `task/3.3-document-stage-3`. Nothing else.
@@ -489,12 +491,172 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
 
+## 4.2 — Set up Prefect (self-hosted)
+- **Branch:** `task/4.2-prefect-setup`
+- **State:** blocked on 🧑 `sudo` install. Agent work done; memory to be measured on the installed services.
+- **Done:**
+  - 4.1 ticked; the pick (self-hosted) recorded in `decisions.md`, the design doc, and ROADMAP.
+  - `uv add prefect` → 3.8.8 in `pyproject.toml` / `uv.lock`. 37 existing tests still pass.
+  - `deploy/prefect-server.service`: `prefect server start` on `0.0.0.0:4200`, SQLite at `~/.prefect/prefect.db`, UI calls `http://lab:4200/api`, analytics off, `MemoryHigh=500M` / `MemoryMax=700M`, restarts on failure.
+  - `deploy/prefect-worker.service`: process worker on work pool `lab` (created on first start), at most 2 flow runs at once, `MemoryHigh=700M` / `MemoryMax=900M`, always restarts.
+  - `flows/hello.py`: a free smoke-test flow (no Modal) to check that the worker runs flows.
+  - CLI profile on `lab` switched to `local` (`PREFECT_API_URL=http://127.0.0.1:4200/api`, `PREFECT_UI_URL=http://lab:4200`), so `prefect` commands talk to the service and never start a throwaway server.
+  - Dry run of the exact `ExecStart` commands by hand (localhost only, port 4210, throwaway Prefect home in the scratchpad, now stopped): server healthy in 10 s, worker created pool `lab`, `hello` ran **Completed** twice. Memory: server **~245 MB**, worker **~97 MB** idle / **~186 MB** while running a flow. Details below.
+- **Next:** after the human installs and pastes the output: register `hello`, run it on the real services, measure `free -h` and each service's RSS, record it here and in the design doc's memory section.
+- **Human must:** run the commands below *(on the server)*, in order, then paste the output. Nothing costs money.
+
+**Before you start:** stay on this branch (or merge it first). The services run the repo's `.venv`; a plain `uv sync` on a branch without Prefect would remove it from the venv (`uv run` doesn't).
+
+1. Go to the repo:
+```bash
+cd ~/projects/cloud-ai-lab
+```
+
+2. Copy both unit files into systemd's folder:
+```bash
+sudo cp deploy/prefect-server.service deploy/prefect-worker.service /etc/systemd/system/
+```
+
+3. Make systemd read them:
+```bash
+sudo systemctl daemon-reload
+```
+
+4. Start the server now and at every boot:
+```bash
+sudo systemctl enable --now prefect-server.service
+```
+
+5. Start the worker now and at every boot:
+```bash
+sudo systemctl enable --now prefect-worker.service
+```
+
+6. Check that both are `active (running)` (no `sudo` needed):
+```bash
+systemctl status prefect-server prefect-worker --no-pager
+```
+
+7. Check the API answers (expected output: `true`):
+```bash
+curl -s http://127.0.0.1:4200/api/health
+```
+
+8. Check the worker connected (expected: `Worker 'lab-worker' started!`). Your user isn't in the `adm` group, so reading system logs needs `sudo`:
+```bash
+sudo journalctl -u prefect-worker -n 20 --no-pager
+```
+
+9. *(On the laptop)* open **http://lab:4200**. Expected: the Prefect dashboard; **Work Pools** shows `lab` with one worker online.
+
+> **If you see** `status=203/EXEC` in step 6, **it means** `.venv/bin/prefect` is missing (e.g. after a `uv sync` on another branch). Run `uv sync` on this branch, then `sudo systemctl restart prefect-server prefect-worker`.
+>
+> **If you see** the dashboard load but say it can't reach the API, **it means** the browser can't resolve `lab`. Check that `ping lab` works from the laptop (Tailscale MagicDNS).
+
+<details><summary>Example from this build</summary>
+
+**1. Add Prefect**
+```console
+$ uv add prefect
+...
+ + prefect==3.8.8
+ + sqlalchemy==2.1.4
+ + uvicorn==0.54.0
+...
+$ uv run prefect version
+Version:              3.8.8
+API version:          0.8.4
+Python version:       3.12.3
+...
+Server:
+  Database:           sqlite
+  SQLite version:     3.45.1
+```
+**Result:** ✅
+
+**2. Check setting names in this version.** `prefect config view --show-defaults` showed `PREFECT_SERVER_API_HOST='127.0.0.1'` and `PREFECT_SERVER_UI_API_URL='http://127.0.0.1:4200/api'`. With that default, the UI in the laptop's browser would call the laptop itself, so the unit sets it to `http://lab:4200/api`. **Result:** ✅
+
+**3. Dry run of the server's `ExecStart`** (localhost, port 4210, throwaway `PREFECT_HOME`, in tmux)
+```console
+$ PREFECT_HOME=<scratch>/prefect-home PREFECT_SERVER_API_HOST=127.0.0.1 PREFECT_SERVER_API_PORT=4210 \
+    PREFECT_SERVER_ANALYTICS_ENABLED=false .venv/bin/prefect server start
+...
+Check out the dashboard at http://127.0.0.1:4210
+$ curl -s http://127.0.0.1:4210/api/health      # answered after 10 s
+true
+```
+**Result:** ✅
+
+**4. Dry run of the worker's `ExecStart`**
+```console
+$ PREFECT_API_URL=http://127.0.0.1:4210/api .venv/bin/prefect worker start --pool lab --type process \
+    --name lab-worker --limit 2 --install-policy never
+Worker 'lab-worker' started!
+$ prefect work-pool ls
+│ lab  │ process │ 7618b472-... │ None │
+```
+**Result:** ✅ the pool was created on first start.
+
+**5. Register and run `hello`**
+```console
+$ uv run python flows/hello.py
+│ hello/hello │ applied │
+$ uv run prefect deployment run hello/hello
+Created flow run 'legendary-bloodhound'.
+# worker log:
+... Executing deployment step: set_working_directory
+... Hello from lab (ubuntu-4gb-sin-2, Python 3.12.3)
+... Finished in state Completed()
+```
+**Result:** ✅ (run twice more for memory; both Completed)
+
+**6. Memory** (summed RSS of each process and its children, sampled every 0.1 s)
+```console
+$ free -m          # before starting anything
+Mem:   3814 total   1706 used   2107 available
+server idle:                 peak tree RSS 248 MB, max processes 1
+worker idle:                 peak tree RSS 97 MB, max processes 1
+worker while running hello:  peak tree RSS 186 MB, max processes 2
+python with prefect + modal imported: max RSS 95 MB
+```
+**Result:** ✅ ~0.35 GB idle for both, under the design estimate (0.4–0.8 GB). The `MemoryHigh`/`MemoryMax` limits leave ~2× headroom over this.
+
+First attempt at step 6 ❌: a `pgrep -f` sampler printed `pgrep: only one pattern can be provided` because the pattern matched both the tmux `bash -c` wrapper and the Python process. Fix: a small Python sampler that walks `/proc` from one PID.
+
+**7. Check the unit files**
+```console
+$ systemd-analyze verify deploy/prefect-server.service deploy/prefect-worker.service
+$ echo $?
+0
+```
+**Result:** ✅
+
+**8. Point the CLI at the service**
+```console
+$ uv run prefect profile use local
+Error connecting to Prefect server using profile 'local'     # expected: not installed yet
+$ uv run prefect config set PREFECT_UI_URL=http://lab:4200
+Updated profile 'local'.
+$ cat ~/.prefect/profiles.toml
+active = "local"
+[profiles.local]
+PREFECT_API_URL = "http://127.0.0.1:4200/api"
+PREFECT_UI_URL = "http://lab:4200"
+```
+**Result:** ✅ the profile switched despite the connection error.
+</details>
+
+- **Noticed, not done (out of scope):**
+  - The services run from the working checkout that agents also switch branches in, so flows run whatever branch is checked out. A separate checkout of `main` (e.g. `~/projects/cloud-ai-lab-main`) for the services would isolate them; worth deciding before 4.3.
+  - The UI has no login. Anyone on your tailnet can open it and press Resume. Fine while the tailnet is only your devices; Prefect's `PREFECT_SERVER_API_AUTH_STRING` (basic auth) is an option later.
+  - Run history in SQLite grows without limit; 4.4 could document a cleanup.
+
 ## 4.1 — Job queue design
-- **Branch:** `task/4.1-prefect-design`
-- **State:** done, waiting for the human's pick (🧑 step of 4.1)
+- **Branch:** `task/4.1-prefect-design` (merged); pick recorded on `task/4.2-prefect-setup`
+- **State:** done, ticked. 🧑 picked **A, self-hosted** (2026-10-14); recorded in `decisions.md` and the design doc.
 - **Done:** `docs/04-job-queue-design.md`: self-hosted Prefect server vs Prefect Cloud Hobby, side-by-side table, memory on this box (2.15 GB available now; A adds ~0.4–0.8 GB, B ~0.15–0.3 GB, **estimates**, not measured), how flows call Modal (flow on `lab`, ephemeral `app.run()` + `.remote()`), and the approval gate (`pause_flow_run` → Paused → Resume in the UI, 24 h timeout, Telegram message with cost). Recommendation: **self-hosted**. Prefect 3.8.8 (2026-10-06) is current.
 - **Next:** 4.2 (service files, `uv add prefect`, `decisions.md` entry) once the human picks.
-- **Human must:** pick **A. self-hosted** or **B. Prefect Cloud Hobby** (B also needs a Prefect Cloud account and API key later, in 4.2). Review and merge. No commands to run, no cost.
+- **Human must:** nothing.
 - **Noticed, not done (out of scope):**
   - The approval gate can be bypassed by anything with shell on `lab` (Prefect API `resume_flow_run`); 4.3 should add a deny rule for Prefect's resume command and 5.1 should decide agent credentials. Modal's $0 limit stays the backstop.
   - Memory figures are estimates; 4.2 should measure RSS after a day and a week and record it.

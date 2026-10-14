@@ -1,0 +1,32 @@
+# Prefect process worker for cloud-ai-lab: polls the work pool "lab" and runs each flow run
+# as a subprocess on this server, with the repo's .venv Python. GPU work happens on Modal;
+# flow runs here only wait on it, so they're light.
+#
+# Install: see docs/STATUS.md, task 4.2 (sudo cp + systemctl enable --now).
+# Adapting: change User and the /home/thovicheka paths to yours.
+
+[Unit]
+Description=Prefect worker for cloud-ai-lab (work pool "lab")
+After=prefect-server.service
+Wants=prefect-server.service
+
+[Service]
+Type=simple
+User=thovicheka
+WorkingDirectory=/home/thovicheka/projects/cloud-ai-lab
+Environment=PREFECT_API_URL=http://127.0.0.1:4200/api
+Environment=PREFECT_UI_URL=http://lab:4200
+# --limit 2: at most 2 flow runs at once, to bound memory on the 4 GB box
+# --install-policy never: never pip-install worker packages at start
+ExecStart=/home/thovicheka/projects/cloud-ai-lab/.venv/bin/prefect worker start --pool lab --type process --name lab-worker --limit 2 --install-policy never
+# Also restarts after the server restarts, if the worker gave up meanwhile
+Restart=always
+RestartSec=10
+# Covers the worker and its flow-run subprocesses. Test run (task 4.2): ~97 MB idle,
+# ~186 MB running one small flow (each flow run is a ~90 MB subprocess; importing modal
+# too measured ~95 MB, before any Modal app starts).
+MemoryHigh=700M
+MemoryMax=900M
+
+[Install]
+WantedBy=multi-user.target

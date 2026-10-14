@@ -2,7 +2,7 @@
 
 **What this decides:** where the Prefect server lives for the job queue (task 4.1). Both options run the same flow code on `lab` and call the same Modal jobs; they differ in what runs on the 4 GB box, who holds the run history, and what needs an account or `sudo`. **🧑 Pick one**; task 4.2 sets it up.
 
-**Recommendation: self-hosted Prefect server** (details in [Recommendation](#6-recommendation)). Nothing was installed and no account was created for this doc.
+**Picked (🧑, 2026-10-14): A, self-hosted Prefect server**, as recommended (details in [Recommendation](#6-recommendation)). Nothing was installed and no account was created for this doc.
 
 Facts checked on 2026-10-14 against prefect.io/pricing, docs.prefect.io, and PyPI (latest `prefect` is **3.8.8**, released 2026-10-06, Python 3.10–3.14). Prices and limits change; check them again before deciding.
 
