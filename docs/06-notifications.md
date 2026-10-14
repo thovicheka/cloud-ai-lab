@@ -92,6 +92,19 @@ $ echo $?
 0
 ```
 **Result:** ✅ A broken or missing Telegram setup never stops a job.
+
+With the bot set up (token and chat ID in `.env`, kept private: `TELEGRAM_BOT_TOKEN=123456:ABC***`, `TELEGRAM_CHAT_ID=<chat-id>`):
+```console
+$ uv run python -m lab.notify --test
+```
+On the phone, in order:
+```text
+▶️ Started: notify test: a job that finishes (T4)
+✅ Finished: notify test: a job that finishes ...
+▶️ Started: notify test: a job that fails (T4)
+❌ Failed: notify test: a job that fails ...
+```
+**Result:** ✅ all four messages arrived.
 </details>
 
 ### 7. Add notifications to a job *(in the code)*
@@ -113,6 +126,8 @@ def main(run_name: str):
 | it ends normally | `✅ Finished: <name> in <time>, ~$<cost> on <gpu>` + the note |
 | it raises an error | `❌ Failed: <name> after <time>, ~$<cost> on <gpu>` + the error |
 | you press Ctrl-C | `⏹️ Stopped: <name> after <time>, ~$<cost> on <gpu>` |
+
+**Not tested yet:** the ⏹️ Stopped message (Ctrl-C during `modal run`). Started, Finished, and Failed have all arrived from real jobs.
 
 The local entrypoint runs on the server, where `.env` is, so Modal containers never need the Telegram keys. Pass `gpu=None` (or leave it out) for CPU-only jobs; the message then says `CPU only, < $0.01`.
 
