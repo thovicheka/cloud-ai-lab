@@ -4,7 +4,7 @@ A self-hosted cloud lab for ML and data science: always-on server, AI agents, on
 
 Your laptop becomes just a window. Code, data, agents, and training jobs live in the cloud, so work keeps running when the laptop is closed, and you can check in from any device.
 
-> **Status:** being built in public. ✅ Stage 1 complete: locked-down always-on server (Tailscale-only, key-only SSH, firewall), dev tools, PyCharm remote, R2 storage, and jobs that survive a closed laptop. ✅ Stage 2 complete: GPU jobs on Modal that checkpoint to R2 and resume after a crash. Docs are written as each stage is completed, including the mistakes along the way.
+> **Status:** being built in public. ✅ Stages 0, 1, 2, and 6 complete: an agent on the server; a locked-down always-on server (Tailscale-only, key-only SSH, firewall) with dev tools, R2 storage, and jobs that survive a closed laptop; GPU jobs on Modal that checkpoint to R2 and resume after a crash; Telegram messages when jobs start, finish, or fail. Next: Stage 3, experiment tracking (W&B). Docs are written as each stage is completed, including the mistakes along the way.
 
 ---
 

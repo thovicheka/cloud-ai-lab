@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-14: doc gaps (branch `task/2.6-doc-gaps`). Done; stopping here.** `.claude/settings.json` now also denies `uv run modal run/deploy/serve`. The Stage 2 doc has the real spend-limit path and `modal token new` output. The Stage 6 doc has the real `--test` result and says ⏹️ Stopped is untested. The README status line says Stages 0, 1, 2, 6 are done and Stage 3 (W&B) is next. **Human must:** review and merge `task/2.6-doc-gaps`. Nothing else.
+
 **Final summary, run of 2026-10-14: record 2.3/2.4/6.1/6.2, then 2.5 and 6.3. All done; stopping here.**
 
 **Branches are stacked; review and merge in this order:** `task/2.2-record-gpu-run` → `task/2.4-record-resume-test` → `task/2.5-document-stage-2` → `task/6.3-document-notifications`.
@@ -22,7 +24,7 @@ Live progress for agent work. The agent updates this after every step and pushes
 **Noticed, not done (out of scope):**
 - The ⏹️ Stopped message (Ctrl-C during `modal run`) has never been tested on a real job. Try it on the next real run.
 - `docs/ROADMAP.md` 2.1 says "set a monthly spending limit" with no amount; this build used $0. Fine as is, but worth a line if others copy the lab.
-- `.claude/settings.json` still denies `modal run` but not `uv run modal run` (noted on 2026-10-13).
+- ~~`.claude/settings.json` still denies `modal run` but not `uv run modal run`~~: fixed in `task/2.6-doc-gaps`.
 
 **2.5 done (2026-10-14, branch `task/2.5-document-stage-2`, on top of `task/2.4-record-resume-test`).** `docs/02-gpu-compute.md` written from the recorded steps; README Stage 2 row and status line updated; "Stage 2 job design" added to `decisions.md`.
 
@@ -59,7 +61,7 @@ Live progress for agent work. The agent updates this after every step and pushes
 **Noticed, not done (out of scope):**
 - The training loop has never executed. Expect possible small fixes after the first GPU run. If you'd rather catch them for ~$0.001, you could approve a CPU-only Modal smoke run (`gpu=None`, a few steps).
 - The README's Stage 2 and Stage 6 rows still say "coming"; that's for 2.5 / 6.3.
-- `.claude/settings.json` denies `modal run`, but not `uv run modal run`. Add `Bash(uv run modal run:*)` if you want the same guard on that form.
+- `.claude/settings.json` denies `modal run`, but not `uv run modal run`. Add `Bash(uv run modal run:*)` if you want the same guard on that form. (Fixed 2026-10-14 in `task/2.6-doc-gaps`.)
 
 ---
 
@@ -481,11 +483,38 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
 
+## 2.6 — Doc gaps (not a ROADMAP task; asked for directly)
+- **Branch:** `task/2.6-doc-gaps` (from `main` after #10)
+- **State:** done, waiting for the human's review and merge
+- **Done:**
+  1. `.claude/settings.json`: added `Bash(uv run modal run:*)`, `Bash(uv run modal deploy:*)`, `Bash(uv run modal serve:*)` to `permissions.deny`.
+  2. `docs/02-gpu-compute.md`: step 1 now names the real path (Settings → Usage & billing → Usage limit tab → Spend limit, $0, $30/month free credit, card not charged); step 3's example is the real `modal token new` output.
+  3. `docs/06-notifications.md`: example block for `--test` with real Telegram (all four messages arrived; token and chat ID masked).
+  4. `docs/06-notifications.md`: a "Not tested yet" line for ⏹️ Stopped under the message table (the known-limits section already had one).
+  5. README status line: Stages 0, 1, 2, 6 done; next is Stage 3 (W&B).
+- **Next:** nothing.
+- **Human must:** review and merge.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Validate the settings file and test the new rule** (with a harmless command, so nothing happens even if it isn't blocked)
+```console
+$ python3 -m json.tool .claude/settings.json >/dev/null && echo "JSON valid"
+JSON valid
+$ uv run modal run --help
+Permission to use Bash with command uv run modal run --help has been denied.
+```
+**Result:** ✅ blocked in the same session that added the rule.
+
+**2. Doc values** come from the human (spend-limit path, `modal token new` output, `--test` results on the phone). The `modal token new` login link isn't shown: it's single-use.
+**Result:** ✅
+</details>
+
 ## 2.5 — Document Stage 2
 - **Branch:** `task/2.5-document-stage-2` (built on `task/2.4-record-resume-test`; merge that first)
 - **State:** done, waiting for the human's review and merge
 - **Done:** `docs/02-gpu-compute.md` (STYLE.md shape: goal, placeholders, prerequisites, 8 steps, verify, cost and safety). Every failure from this build is in it with error, cause, and fix: `python-dotenv` missing, `DeserializationError` from `torch.__version__`, the NumPy warning, `/tmp/ckpt` missing. Real output comes from the runs recorded under 2.2–2.4 and from `modal app logs` (read-only). README Stage 2 row → the doc; README status line updated. `decisions.md`: new "Stage 2 job design" section (why local entrypoint on the server, two checkpoints, `retries=0`, no default run name). 2.5 ticked in ROADMAP.
-- **Not verified:** the exact name of Modal's billing settings page, so step 1 describes it instead of naming it. `modal token new`'s output wasn't recorded, so step 3 shows the check instead.
+- **Not verified:** the exact name of Modal's billing settings page, so step 1 describes it instead of naming it. `modal token new`'s output wasn't recorded, so step 3 shows the check instead. (Both filled in with the human's real values in `task/2.6-doc-gaps`.)
 - **Next:** nothing.
 - **Human must:** review and merge. The doc links to `06-notifications.md`, which arrives with 6.3.
 
@@ -493,7 +522,7 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 - **Branch:** `task/6.3-document-notifications` (built on `task/2.5-document-stage-2`; merge that first)
 - **State:** done, waiting for the human's review and merge
 - **Done:** `docs/06-notifications.md` (STYLE.md shape: goal, placeholders, prerequisites, 7 steps, verify, known limits). Covers creating the bot, the chat ID, `.env`, a one-message test, the four-message self-test, wiring `notify_job` into a job, and troubleshooting for each `notify:` warning. Every claim checked against `lab/notify.py`. Real output: the unconfigured self-test (6.2 step 4) and the Telegram messages from real jobs (2.2, 2.4). README Stage 6 row → the doc. 6.3 ticked in ROADMAP.
-- **Not recorded in this build:** BotFather's and @userinfobot's replies and a configured `--test` run, so those steps have no example block.
+- **Not recorded in this build:** BotFather's and @userinfobot's replies and a configured `--test` run, so those steps have no example block. (The `--test` run was added in `task/2.6-doc-gaps`.)
 - **Next:** nothing.
 - **Human must:** review and merge.
 

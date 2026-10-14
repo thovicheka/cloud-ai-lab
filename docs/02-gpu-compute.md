@@ -31,15 +31,17 @@ Why Modal (and not RunPod or Vast.ai) for batch jobs: see [decisions.md](decisio
 
 ### 1. Create a Modal account and set a spending limit *(laptop browser)*
 1. Sign up at [modal.com](https://modal.com) with GitHub.
-2. In the dashboard's billing settings, set a **monthly spending limit**.
+2. In the Modal dashboard, open **Settings → Usage & billing → Usage limit** tab, and set **Spend limit**.
 
-*What it does:* the Starter plan includes a free monthly credit (check modal.com/pricing for the current amount). A limit of **$0** means jobs run only on that credit and stop when it runs out, instead of billing your card.
+*What it does:* the Starter plan includes a free monthly credit ($30/month in October 2026; check modal.com/pricing). A spend limit of **$0** means jobs run only on that credit and stop when it runs out; your card is never charged.
 
 > **Adapting:** set a higher limit once you train for real. A T4 costs $0.000164/s (~$0.59/h; modal.com/pricing, 2026-10-13).
 
 <details><summary>Example from this build</summary>
 
-Spending limit set to **$0** (free credits only). **Result:** ✅
+Settings → Usage & billing → **Usage limit** tab → **Spend limit: $0**. Jobs use only the $30/month free credit; the card is not charged.
+
+**Result:** ✅
 </details>
 
 ### 2. Install the Modal CLI *(on the server)*
@@ -72,11 +74,15 @@ modal token new
 <details><summary>Example from this build</summary>
 
 ```console
-$ which modal; test -f ~/.modal.toml && echo "modal.toml exists"
-/home/thovicheka/.local/bin/modal
-modal.toml exists
+$ modal token new
+...
+Web authentication finished successfully!
+Token is connected to the thovicheka38 workspace.
+Verifying token against https://api.modal.com
+Token verified successfully!
+Token written to /home/thovicheka/.modal.toml in profile thovicheka38.
 ```
-**Result:** ✅
+**Result:** ✅ (the login link, shown before `...`, is single-use and left out).
 </details>
 
 ### 4. Run the hello-GPU job *(on the server)*
@@ -277,7 +283,7 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 
 ## Cost and safety
 
-- **Spending limit:** set in step 1. With **$0**, nothing is ever billed beyond the free credit.
+- **Spend limit:** set in step 1. With **$0**, nothing is ever billed beyond the free credit ($30/month in October 2026).
 - **Timeouts:** every job has one (`timeout=` on `@app.function`): 5 min for hello-GPU, 2 min for R2, 30 min for training. A hung job is killed at the limit.
 - **Retries:** every job sets `retries=0`, so a failed job runs once and bills once. To retry, run the command again; the training job resumes. Modal itself may still re-run a job its own infrastructure lost (for example a GPU taken away mid-run); that can't be turned off, and the training job then prints `resumed ... at step N`.
 - **Agents never run `modal run`.** They write the code and the command; a human runs it ([CLAUDE.md](../CLAUDE.md), rule 4).
