@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-14: 4.3 written (branch `task/4.3-flows`, from `origin/main` at cb6d770). Stopping here.** Two Prefect flows wrap the Modal jobs: `hello-gpu` and `train-mnist`. Each estimates the cost, sends `⏸️ Awaiting approval, ~$X` on Telegram with a link to the run, then pauses for up to 24 h. Modal is called only after you tick `approve` in the UI; a decline or a timeout ends the run without touching a GPU. Paid steps are never retried. `.claude/settings.json` now stops agents from resuming paused runs or starting deployment runs. 11 new tests (48 total) ✅ against a throwaway Prefect server, with Modal and Telegram faked. Nothing deployed, no Modal call, no money spent. **Human must:** review and merge, then run the 7 steps under 4.3 (register both flows, run `hello-gpu` once, approve it: ~$0.01, at most $0.05).
+
 **Run of 2026-10-14: runtime worktree for the Prefect services (branch `task/4.2-runtime-worktree`, from `main`). Stopping here.** `~/projects/lab-runtime` is a git worktree of `main` with its own `.venv` (`uv sync` done). Both unit files now run from it; `hello` was re-registered from it and ran **Completed**. Nothing installed, no money spent. **Human must:** merge, then run the 9 reinstall steps under "4.2 follow-up" (`git pull`, `uv sync`, `sudo cp`, `daemon-reload`, `restart`, checks). After every later merge: `cd ~/projects/lab-runtime && git pull && uv sync && sudo systemctl restart prefect-server prefect-worker`. Open: `.env` for `lab-runtime` before 4.3.
 
 **Run of 2026-10-14: 4.1 ticked (self-hosted picked), 4.2 set up (branch `task/4.2-prefect-setup`). Stopping here; waiting for the human.** Prefect 3.8.8 added with `uv`; `deploy/prefect-server.service` (UI at http://lab:4200 over Tailscale) and `deploy/prefect-worker.service` (work pool `lab`) written, not installed. A by-hand dry run on localhost worked: the `hello` flow ran Completed; server ~245 MB, worker ~97 MB idle. **Human must:** run the 9 steps under 4.2 (`sudo cp`, `daemon-reload`, two `enable --now`, checks), then paste the output; the agent then measures memory on the real services.
@@ -492,6 +494,130 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
+
+## 4.3 — Wrap the Modal jobs in Prefect flows
+- **Branch:** `task/4.3-flows` (from `origin/main` at cb6d770)
+- **State:** blocked on 🧑 merge + one approved test run. Agent work done.
+- **Done:**
+  - `flows/approval.py`: the gate. `ask_approval()` sends `⏸️ Awaiting approval, ~$X: <job> on T4`, the worst case at the job's Modal timeout, and the UI link (`prefect.runtime.flow_run.ui_url`, so `http://lab:4200/...` on the worker). Then it calls `pause_flow_run(wait_for_input=Approval, timeout=24 h)`. The `Approval` form has `approve` (unticked by default, so pressing Resume without ticking it declines) and `note`.
+  - `flows/hello_gpu.py` (flow `hello-gpu`) and `flows/train.py` (flow `train-mnist`, parameters `run_name`, `steps`, `ckpt_every`). After approval, a task runs the existing Modal function with `app.run()` + `.remote()` inside `notify_job()`, so you get ▶️ Started, then ✅ Finished or ❌ Failed, as with `modal run`. These are ephemeral apps, as proposed in the design doc §4, so no `modal deploy` is needed.
+  - States you'll see: Running → **Paused** → Running → **Completed** / **Failed**. Declined → **Cancelled** (🚫 on Telegram). No answer in 24 h → **Failed** (⌛ on Telegram).
+  - Retries: Telegram sends retry twice (10 s apart). If they still fail, the flow logs a warning and carries on, so the gate still holds. Paid steps: task `retries=0`, flow `retries=0`, no caching, and Modal's own `retries=0` as before. A failed training run is re-run by hand with the same `run_name`; it resumes from its R2 checkpoint and asks for approval again.
+  - Cost estimates: based on real runs (hello-gpu took 9 s; training did 2000 steps in 23–27 s).
+    - `hello-gpu`: 60 s → **~$0.01**, at most **$0.05** (5 min timeout).
+    - `train-mnist`: 90 s + 15 ms/step. 3000 steps → **~$0.02**, at most **$0.30** (30 min timeout).
+  - `.claude/settings.json`: denies the flow-run resume and deployment run commands. Covered forms: bare `prefect`, `uv run prefect`, and the `.venv/bin/prefect` paths. Glob rules also catch the Python API names (`resume_flow_run`, `run_deployment`) and the REST resume / create-run paths.
+  - `tests/test_flows.py`: 11 tests on a throwaway Prefect server (`prefect_test_harness`). Modal is faked, and any real `modal.App.run` fails the test. Telegram is faked. The pause is the real one, and the tests resume it through the API as the UI does. The fake Telegram fixture moved from `test_notify.py` to `conftest.py`.
+- **Next:** after your test run, tick 4.3 in ROADMAP and record the run here. Then 4.4 (docs).
+- **Human must:** review and merge `task/4.3-flows`, then run the steps below *(on the server)*. Steps 1–5 are free; step 6 asks for approval; step 7 is the only one that costs money.
+
+1. Go to the runtime checkout:
+```bash
+cd ~/projects/lab-runtime
+```
+
+2. Get the merged flows (no new packages, so no `uv sync` or restart needed):
+```bash
+git pull
+```
+
+3. Register `hello-gpu` with the work pool `lab` (expected: `│ hello-gpu/hello-gpu │ applied │`):
+```bash
+uv run python -m flows.hello_gpu
+```
+
+4. Register `train-mnist` (expected: `│ train-mnist/train-mnist │ applied │`):
+```bash
+uv run python -m flows.train
+```
+
+5. Check both are there:
+```bash
+uv run prefect deployment ls
+```
+
+6. Start one `hello-gpu` run. It only pauses: Telegram should say `⏸️ Awaiting approval, ~$0.01: hello-gpu on T4` with a link. Nothing is spent yet.
+```bash
+uv run prefect deployment run hello-gpu/hello-gpu
+```
+
+7. *(On the laptop or phone, over Tailscale)* open the link from Telegram → **Resume** → tick **approve** → **Submit**. **Cost: ~$0.01, at most $0.05** (T4 at $0.000164/s, 5 min hard timeout; covered by Modal's free credit, limit $0). Expected: ▶️ Started, then `✅ Finished: hello-gpu in ...` and `Tesla T4: ... TFLOPS`; the run shows **Completed**.
+
+> **If you see** the run go **Failed** right after approval with `ModuleNotFoundError: No module named 'jobs'` in its logs, **it means** the Modal container didn't get the `jobs/` folder (checked offline below, but only a real run proves it). Paste the log; nothing more is spent.
+>
+> **If you see** no Telegram message, **it means** the flow couldn't read the bot token. Check `ls -l ~/projects/lab-runtime/.env` (it should be a symlink to the repo's `.env`). The run still pauses; find it under **Runs** in the UI.
+
+<details><summary>Example from this build</summary>
+
+**1. How Modal will ship the job when a flow imports it.** `modal run jobs/hello_gpu.py` runs the file as a script. A flow imports it as `jobs.hello_gpu`, which Modal treats as a package. Checked offline (no Modal call):
+```console
+$ uv run python -c "import jobs.hello_gpu as h, jobs.train_template as t; ..."
+jobs.hello_gpu FunctionSourceInfoType.PACKAGE /home/thovicheka/projects/cloud-ai-lab/jobs ['jobs']
+jobs.train_template FunctionSourceInfoType.PACKAGE /home/thovicheka/projects/cloud-ai-lab/jobs ['jobs']
+```
+**Result:** ✅ Modal mounts the `jobs/` folder and imports `jobs.<name>` in the container. Not proven until a real run (step 7).
+
+**2. Load each flow the way the worker does** (from the entrypoint path, with the repo not on `sys.path`)
+```console
+$ .venv/bin/python -I -c "... load_flow_from_entrypoint(ep) ..."
+repo on sys.path: False
+flows/hello_gpu.py:hello_gpu -> hello-gpu []
+flows/train.py:train_mnist -> train-mnist ['run_name', 'steps', 'ckpt_every']
+```
+**Result:** ✅ Prefect adds the working directory while loading, so `from jobs...` and `from flows...` resolve.
+
+**3. Tests**
+```console
+$ uv run pytest tests/test_flows.py -v
+test_hello_gpu_estimate PASSED
+test_train_estimate PASSED
+test_paid_steps_never_retry PASSED
+test_approval_waits_24_hours PASSED
+test_nothing_runs_before_approval_then_approved_run PASSED
+test_declined_never_calls_modal PASSED
+test_resume_without_ticking_approve_declines PASSED
+test_no_answer_times_out_without_modal PASSED
+test_failed_gpu_step_is_not_retried PASSED
+test_telegram_down_still_pauses_and_retries_messages PASSED
+test_train_passes_parameters_after_approval PASSED
+11 passed in 27.69s
+$ uv run pytest -q
+48 passed in 36.49s
+```
+**Result:** ✅
+
+**4. Can the tests fail?** I temporarily made `hello-gpu` call Modal before asking, then ran the tests again:
+```console
+7 failed, 4 passed in 83.36s
+```
+**Result:** ✅ the gate tests catch it. The file was restored afterwards (`git diff` clean).
+
+**5. The tests didn't touch the real server**
+```console
+$ uv run prefect flow ls          # only the flow from 4.2
+│ d1851678-... │ hel… │ 2026-10-14 16:40:23 │
+```
+**Result:** ✅ no `hello-gpu` or `train-mnist` flow on :4200. The harness also asserts its API URL isn't `:4200`.
+
+**6. Deny rules work in this session** (harmless commands; each would do nothing even if allowed)
+```console
+$ echo "glob check: prefect flow-run resume"
+Permission to use Bash with command echo "glob check: prefect flow-run resume" has been denied.
+$ uv run prefect deployment run --help
+Permission to use Bash with command uv run prefect deployment run --help has been denied.
+$ echo "glob check: from prefect.flow_runs import resume_flow_run"
+Permission to use Bash ... has been denied.
+```
+**Result:** ✅ both the prefix rules and the `*` globs match. Side effect: an agent's shell command that only *mentions* these phrases (e.g. in an `echo` or a commit message) is blocked too.
+
+**7. Lint** (`ruff`, line length 100 like the rest of the repo): new files clean. Two older `SIM117` findings remain in `tests/test_notify.py`; not touched.
+</details>
+
+- **Noticed, not done (out of scope):**
+  - A paused run keeps its process alive and uses one of the worker's 2 slots (`--limit 2`) for up to 24 h. Two runs waiting for approval would hold back every other flow, including `hello`. Options: raise the limit (each paused run is ~90 MB), or switch to `suspend_flow_run` (design doc §5).
+  - The gate can't stop an agent with shell access from running Python that imports a flow's task and calls Modal directly, or from calling the Prefect API under other names. The deny rules cover the obvious forms; Modal's $0 spending limit stays the backstop. 5.1 decides which credentials agents get.
+  - `r2_hello` has no flow. You asked for `hello_gpu` and `train_template`; the design doc also lists `r2_hello` (< $0.01). Easy to add the same way.
+  - Cost estimates are hard-coded constants next to each flow. `MAX_SECONDS` must be kept in step with `timeout=` in `jobs/*.py` by hand.
 
 ## 4.2 follow-up — Runtime worktree for the services
 - **Branch:** `task/4.2-runtime-worktree` (from `main` at b71f207)
