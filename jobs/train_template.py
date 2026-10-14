@@ -25,12 +25,16 @@ GPU = "T4"
 TORCH_VERSION = "2.14.1"
 TORCHVISION_VERSION = "0.29.1"
 BOTO3_VERSION = "1.43.112"
+NUMPY_VERSION = "2.5.3"  # torch warns "Failed to initialize NumPy" without it
 
 app = modal.App("train-template")
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .uv_pip_install(
-        f"torch=={TORCH_VERSION}", f"torchvision=={TORCHVISION_VERSION}", f"boto3=={BOTO3_VERSION}"
+        f"torch=={TORCH_VERSION}",
+        f"torchvision=={TORCHVISION_VERSION}",
+        f"numpy=={NUMPY_VERSION}",
+        f"boto3=={BOTO3_VERSION}",
     )
     .add_local_python_source("lab")
 )
@@ -152,11 +156,12 @@ def train(
                 f"  test acc {test_acc:.4f}  saved latest{' + best' if is_best else ''}"
             )
 
+    # Plain Python types only: the result is unpickled on the server, which has no torch.
     return {
         "run": run_name,
-        "steps_this_run": step - start_step,
-        "resumed_from": start_step,
-        "best_test_loss": round(best, 4) if best is not None else None,
+        "steps_this_run": int(step - start_step),
+        "resumed_from": int(start_step),
+        "best_test_loss": round(float(best), 4) if best is not None else None,
         "train_seconds": round(time.time() - started, 1),
         "checkpoints": f"r2:{storage.bucket()}/{ckpts.latest_key.rsplit('/', 1)[0]}/",
     }

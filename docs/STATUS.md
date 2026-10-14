@@ -4,19 +4,21 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Fix of 2026-10-14 (branch `task/2.2-fix-return-types`).** The human's first `modal run jobs/hello_gpu.py` got a Tesla T4 but failed returning the result (`DeserializationError`: `torch` not available locally). Cause: the result held `torch.__version__`, a `TorchVersion` object, not a `str`. Fixed in `hello_gpu.py`; `train_template.py` now casts its results too; `r2_hello.py` was already fine. Images now include `numpy`, and the install command is `uv tool install modal --with python-dotenv`. **Human must:** merge this branch, then re-run `modal run jobs/hello_gpu.py` (< $0.05). Details under 2.2.
+
 **Run of 2026-10-13: tasks 2.2, 2.3, 2.4, 6.2.** All agent work is finished. Each task is blocked only on a human step: Modal account (2.1), the R2 secret, a Telegram bot (6.1), and running the paid jobs. No money was spent and no Modal job was run.
 
 **Branches are stacked; review and merge in this order:** `task/2.2-hello-gpu` → `task/2.3-modal-r2` → `task/2.4-train-template` → `task/6.2-notifier`. Each builds on the one before (shared `pyproject.toml`, `lab/`, this file).
 
 | Task | Agent work | Tested | Blocked on |
 |---|---|---|---|
-| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | loads ✅ | 2.1, a GPU run |
+| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | GPU run ❌ (result type), fixed; re-run needed | a re-run after merging `task/2.2-fix-return-types` |
 | 2.3 R2 from Modal | `lab/storage.py`, `jobs/r2_hello.py`, `.env.example` | 10 tests vs fake S3 ✅ | 2.1, `r2` secret, a CPU run |
 | 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | checkpoint logic: 6 tests ✅; training loop: not run (no local training) | 2.1, `r2` secret, 2 GPU runs |
 | 6.2 Notifier | `lab/notify.py`, wired into all jobs | 16 tests vs fake Telegram ✅; self-test unconfigured ✅ | 6.1 |
 
 **What the human does, in order** (details under each task below; run everything on the server from `~/projects/cloud-ai-lab`):
-1. **2.1:** sign up at modal.com, **set a monthly spending limit**, then `uv tool install modal` and `modal token new`.
+1. **2.1:** sign up at modal.com, **set a monthly spending limit**, then `uv tool install modal --with python-dotenv` and `modal token new`.
 2. **R2 + Telegram keys:** `cp .env.example .env && chmod 600 .env`, then fill in the R2 values (same as the rclone `r2` remote) and, after 6.1, the bot token and chat ID.
 3. **Modal secret:** `grep '^R2_' .env > ~/r2.env && modal secret create r2 --from-dotenv ~/r2.env; rm ~/r2.env`
 4. **Free:** `uv run python -m lab.notify --test` → 4 Telegram messages (needs 6.1).
@@ -90,13 +92,14 @@ Permission to use Bash with command rm -rf ./does-not-exist-deny-test has been d
 
 ## 2.2 — Hello-GPU job
 - **Branch:** `task/2.2-hello-gpu`
-- **State:** blocked: code written and checked locally; can't run until 2.1 is done
+- **State:** blocked: the first GPU run (by the human, 2026-10-14) reached the T4 but failed returning its result; fixed on `task/2.2-fix-return-types`, waiting for review and a re-run
+- **Fix branch:** `task/2.2-fix-return-types`: plain Python types in the returned dicts (`hello_gpu.py`, `train_template.py`), `numpy==2.5.3` in the torch images, ROADMAP 2.1 install command now `uv tool install modal --with python-dotenv`.
 - **Done:** `uv` project (`pyproject.toml`, `uv.lock`, Python 3.12, `modal` 1.6.1). `jobs/hello_gpu.py`: a T4 function that prints `nvidia-smi`, times a 4096×4096 PyTorch matmul, and returns GPU name, torch/CUDA versions, ms and TFLOPS. 5-minute hard timeout. Cost estimate in the file's docstring.
-- **Next:** the human runs it (below).
+- **Next:** the human merges `task/2.2-fix-return-types` and re-runs step 2 below.
 - **Human must:**
-  1. Finish **2.1**: sign up for Modal, **set a monthly spending limit**, then on the server:
+  1. Finish **2.1** (done: the first run reached Modal): sign up for Modal, **set a monthly spending limit**, then on the server:
      ```bash
-     uv tool install modal    # the `modal` command; not installed yet
+     uv tool install modal --with python-dotenv   # the `modal` command; --from-dotenv needs python-dotenv
      modal token new          # opens a login link; writes ~/.modal.toml
      ```
   2. Run the job: `modal run jobs/hello_gpu.py`
@@ -145,7 +148,56 @@ entrypoints: ['main']
 ```
 **Result:** ✅ (Modal warns that `registered_functions` is deprecated in 1.7; only the check uses it, not the job.)
 
-**5. Run on a GPU:** not done. Needs 2.1 and the human (`modal run` costs money).
+**5. First GPU run** (run by the human on 2026-10-14; output as reported)
+```console
+$ modal run jobs/hello_gpu.py
+...
+DeserializationError: Deserialization failed because the 'torch' module is not available in the local environment.
+```
+The container log also showed torch's warning `Failed to initialize NumPy`.
+
+**Result:** ❌ the job ran on a **Tesla T4**, but the result never reached the server.
+- **Error:** `DeserializationError: ... the 'torch' module is not available in the local environment.`
+- **Cause:** Modal pickles the return value in the container and unpickles it on the server, inside the `modal` tool's own environment, which has no torch. `torch.__version__` is a `TorchVersion` (a `str` subclass defined in torch), so the pickle refers to the torch module and can't load without it.
+- **Fix:** return only plain Python types: `str(torch.__version__)`, and `str()` around the other torch-provided values. Checked the other jobs for the same problem:
+  - `train_template.py`: values were already plain (`.item()` gives a Python `float`); added `int()` / `float()` casts so it stays that way when edited.
+  - `r2_hello.py`: returns object keys from boto3, already plain `str`. No change.
+- **Also:** torch prints `Failed to initialize NumPy` when numpy isn't installed. Added `numpy==2.5.3` (released 2026-09-06; 2.5.4 is only 4 days old) to the `hello_gpu` and `train_template` images. `r2_hello` doesn't use torch, so its image is unchanged.
+
+**6. Reproduce the cause without torch** (a `str` subclass from a module that's missing on the loading side, as on the server)
+```console
+$ uv run python -I scratchpad/repro.py scratchpad/fakemod
+isinstance(v, str): True
+str(v): {'torch': '2.14.1+cu128'}
+raw TorchVersion: ModuleNotFoundError No module named 'fake_torch_version'
+```
+**Result:** ✅ a `str` subclass still needs its module to unpickle; `str(v)` doesn't.
+
+**7. Check the fixed jobs load, lint, and the tests still pass**
+```console
+$ for f in hello_gpu r2_hello train_template; do uv run python -c "import runpy; print('$f loads, app:', runpy.run_path('jobs/$f.py')['app'].name)"; done
+hello_gpu loads, app: hello-gpu
+r2_hello loads, app: r2-hello
+train_template loads, app: train-template
+$ uvx ruff@0.14.0 check --select E,F,W,B --line-length 100 lab jobs tests
+All checks passed!
+$ uv run pytest -q
+32 passed in 3.79s
+```
+**Result:** ✅
+
+**8. `modal secret create --from-dotenv` needs `python-dotenv`** (reported by the human while doing 2.3's secret)
+**Result:** ❌ then ✅
+- **Cause:** `uv tool install modal` installs the CLI without `python-dotenv`, which `--from-dotenv` imports.
+- **Fix:** install the CLI with it, and the ROADMAP 2.1 command now says so:
+```console
+$ uv tool install modal --with python-dotenv
+$ uv tool list --show-with
+modal v1.6.1 [with: python-dotenv]
+- modal
+```
+
+**9. Re-run on the GPU:** not done. Needs the human (`modal run` costs money).
 </details>
 
 ## 2.3 — R2 from Modal

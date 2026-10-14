@@ -14,9 +14,12 @@ import modal
 
 GPU = "T4"  # cheapest Modal GPU
 TORCH_VERSION = "2.14.1"
+NUMPY_VERSION = "2.5.3"  # torch warns "Failed to initialize NumPy" without it
 
 app = modal.App("hello-gpu")
-image = modal.Image.debian_slim(python_version="3.12").uv_pip_install(f"torch=={TORCH_VERSION}")
+image = modal.Image.debian_slim(python_version="3.12").uv_pip_install(
+    f"torch=={TORCH_VERSION}", f"numpy=={NUMPY_VERSION}"
+)
 
 
 # timeout: a hard stop, so a hung job can never bill for more than 5 minutes.
@@ -42,10 +45,13 @@ def hello(n: int = 4096) -> dict:
     torch.cuda.synchronize()  # GPU calls are async; wait before stopping the clock
     seconds = time.perf_counter() - start
 
+    # Plain Python types only: the result is unpickled on the server, which has no torch.
+    # torch.__version__ is a TorchVersion, not a str; returning it fails with
+    # "DeserializationError: ... the 'torch' module is not available in the local environment".
     return {
-        "gpu": torch.cuda.get_device_name(0),
-        "torch": torch.__version__,
-        "cuda": torch.version.cuda,
+        "gpu": str(torch.cuda.get_device_name(0)),
+        "torch": str(torch.__version__),
+        "cuda": str(torch.version.cuda),
         "matmul": f"{n}x{n}",
         "ms": round(seconds * 1000, 2),
         "tflops": round(2 * n**3 / seconds / 1e12, 2),
