@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-14: 4.1 written (branch `task/4.1-prefect-design`). Stopping here; waiting for the human to pick.** `docs/04-job-queue-design.md` compares a self-hosted Prefect server with Prefect Cloud's free Hobby tier (memory, cost, `sudo`, accounts, calling Modal, approval gate) and **recommends self-hosted**. Nothing installed, no account created, no money spent. **Human must:** read the doc and pick A (self-hosted) or B (Cloud Hobby); then review and merge. 4.2 starts after the pick.
+
 **Run of 2026-10-14: 3.2 recorded, 3.3 done (branch `task/3.3-document-stage-3`, from `main` after #12). Stopping here.** The human's crash + resume run with W&B passed: one W&B run (`hy7wqqht`) across both runs, resumed at step 1000, final test loss 0.0240 / acc 99.29%. The human checked wandb.ai and Telegram (details under 3.2). 3.2 and 3.3 ticked in ROADMAP. `docs/03-experiment-tracking.md` written, README row and status line updated. **Stage 3 is complete** once this is merged. No money spent by the agent; the agent only ran `rclone ls` (read-only) and offline tests. **Human must:** review and merge `task/3.3-document-stage-3`. Nothing else.
 
 **Run of 2026-10-14: 3.1 recorded, 3.2 written (branch `task/3.2-wandb-template`). Stopping here.** 3.1 ticked (the `wandb` secret exists). 3.2: `jobs/train_template.py` logs to W&B (project `cloud-ai-lab`, run name = `--run-name`), resumed runs continue the same W&B run, and training still works without a key. 4 new tests (37 total) ✅. Not run on Modal. **Human must:** run the two commands under 3.2 (~$0.05 from free credits), check the W&B page, then review and merge.
@@ -486,6 +488,16 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
+
+## 4.1 — Job queue design
+- **Branch:** `task/4.1-prefect-design`
+- **State:** done, waiting for the human's pick (🧑 step of 4.1)
+- **Done:** `docs/04-job-queue-design.md`: self-hosted Prefect server vs Prefect Cloud Hobby, side-by-side table, memory on this box (2.15 GB available now; A adds ~0.4–0.8 GB, B ~0.15–0.3 GB, **estimates**, not measured), how flows call Modal (flow on `lab`, ephemeral `app.run()` + `.remote()`), and the approval gate (`pause_flow_run` → Paused → Resume in the UI, 24 h timeout, Telegram message with cost). Recommendation: **self-hosted**. Prefect 3.8.8 (2026-10-06) is current.
+- **Next:** 4.2 (service files, `uv add prefect`, `decisions.md` entry) once the human picks.
+- **Human must:** pick **A. self-hosted** or **B. Prefect Cloud Hobby** (B also needs a Prefect Cloud account and API key later, in 4.2). Review and merge. No commands to run, no cost.
+- **Noticed, not done (out of scope):**
+  - The approval gate can be bypassed by anything with shell on `lab` (Prefect API `resume_flow_run`); 4.3 should add a deny rule for Prefect's resume command and 5.1 should decide agent credentials. Modal's $0 limit stays the backstop.
+  - Memory figures are estimates; 4.2 should measure RSS after a day and a week and record it.
 
 ## 3.3 — Document Stage 3
 - **Branch:** `task/3.3-document-stage-3` (from `main` after #12; also carries the 3.2 run record)
