@@ -55,7 +55,7 @@ Design rules:
 | 3. Experiment tracking | coming |
 | 4. Job queue | coming |
 | 5. Agents | coming |
-| 6. Notifications | coming |
+| 6. Notifications (Telegram) ✅ | [docs/06-notifications.md](docs/06-notifications.md) |
 | **Roadmap: task list for humans and agents** | [docs/ROADMAP.md](docs/ROADMAP.md) |
 | Rules for AI agents | [CLAUDE.md](CLAUDE.md) |
 | Why each tool was chosen | [docs/decisions.md](docs/decisions.md) |

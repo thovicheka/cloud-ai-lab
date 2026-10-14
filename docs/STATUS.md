@@ -4,6 +4,26 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Final summary, run of 2026-10-14: record 2.3/2.4/6.1/6.2, then 2.5 and 6.3. All done; stopping here.**
+
+**Branches are stacked; review and merge in this order:** `task/2.2-record-gpu-run` → `task/2.4-record-resume-test` → `task/2.5-document-stage-2` → `task/6.3-document-notifications`.
+
+| Task | State | Branch |
+|---|---|---|
+| 2.1, 2.2 | done, ticked | `task/2.2-record-gpu-run` |
+| 2.3, 2.4, 6.1, 6.2 | done, ticked (resume test passed; real Telegram messages) | `task/2.4-record-resume-test` |
+| 2.5 Document Stage 2 | done: `docs/02-gpu-compute.md`, README row, `decisions.md` | `task/2.5-document-stage-2` |
+| 6.3 Document Stage 6 | done: `docs/06-notifications.md`, README row | `task/6.3-document-notifications` |
+
+**Stages 2 and 6 are complete** once these are merged. No money was spent by the agent; the paid runs were the human's, on Modal's free credit (limit $0). The agent only read Modal and R2 (`modal app list`, `modal app logs`, `modal secret list`, `rclone ls`).
+
+**Human must:** review and merge the four branches in order. Nothing else.
+
+**Noticed, not done (out of scope):**
+- The ⏹️ Stopped message (Ctrl-C during `modal run`) has never been tested on a real job. Try it on the next real run.
+- `docs/ROADMAP.md` 2.1 says "set a monthly spending limit" with no amount; this build used $0. Fine as is, but worth a line if others copy the lab.
+- `.claude/settings.json` still denies `modal run` but not `uv run modal run` (noted on 2026-10-13).
+
 **2.5 done (2026-10-14, branch `task/2.5-document-stage-2`, on top of `task/2.4-record-resume-test`).** `docs/02-gpu-compute.md` written from the recorded steps; README Stage 2 row and status line updated; "Stage 2 job design" added to `decisions.md`.
 
 **2.3, 2.4, 6.1, 6.2 done (2026-10-14).** The resume test passed: the crash run saved at steps 500 and 1000 and died at 1100; the second run printed `resumed mnist/checkpoints/try-1/latest.pt at step 1000` and finished at step 3000 (test acc 0.9933). R2 holds exactly `best.pt` and `latest.pt`. Telegram sent Started, Failed, and Finished. All four ticked in ROADMAP. Next: 2.5 and 6.3 (docs).
@@ -468,6 +488,14 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 - **Not verified:** the exact name of Modal's billing settings page, so step 1 describes it instead of naming it. `modal token new`'s output wasn't recorded, so step 3 shows the check instead.
 - **Next:** nothing.
 - **Human must:** review and merge. The doc links to `06-notifications.md`, which arrives with 6.3.
+
+## 6.3 — Document Stage 6
+- **Branch:** `task/6.3-document-notifications` (built on `task/2.5-document-stage-2`; merge that first)
+- **State:** done, waiting for the human's review and merge
+- **Done:** `docs/06-notifications.md` (STYLE.md shape: goal, placeholders, prerequisites, 7 steps, verify, known limits). Covers creating the bot, the chat ID, `.env`, a one-message test, the four-message self-test, wiring `notify_job` into a job, and troubleshooting for each `notify:` warning. Every claim checked against `lab/notify.py`. Real output: the unconfigured self-test (6.2 step 4) and the Telegram messages from real jobs (2.2, 2.4). README Stage 6 row → the doc. 6.3 ticked in ROADMAP.
+- **Not recorded in this build:** BotFather's and @userinfobot's replies and a configured `--test` run, so those steps have no example block.
+- **Next:** nothing.
+- **Human must:** review and merge.
 
 ## 6.2 — Notifier
 - **Branch:** `task/6.2-notifier` (built on `task/2.4-train-template`; merge 2.2 → 2.3 → 2.4 → 6.2)
