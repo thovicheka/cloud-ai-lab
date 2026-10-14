@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**2.5 done (2026-10-14, branch `task/2.5-document-stage-2`, on top of `task/2.4-record-resume-test`).** `docs/02-gpu-compute.md` written from the recorded steps; README Stage 2 row and status line updated; "Stage 2 job design" added to `decisions.md`.
+
 **2.3, 2.4, 6.1, 6.2 done (2026-10-14).** The resume test passed: the crash run saved at steps 500 and 1000 and died at 1100; the second run printed `resumed mnist/checkpoints/try-1/latest.pt at step 1000` and finished at step 3000 (test acc 0.9933). R2 holds exactly `best.pt` and `latest.pt`. Telegram sent Started, Failed, and Finished. All four ticked in ROADMAP. Next: 2.5 and 6.3 (docs).
 
 **2.1 and 2.2 done (2026-10-14).** The human finished 2.1 (Modal account, token, spending limit **$0**: free credits only) and re-ran `hello_gpu.py` after the fix: ✅ Tesla T4, 3.84 TFLOPS, 9 s, ~$0.00. Both ticked in ROADMAP. With a $0 limit, jobs stop when the monthly free credit runs out instead of billing. Next: 2.4's resume test (see 2.4).
@@ -458,6 +460,14 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
+
+## 2.5 — Document Stage 2
+- **Branch:** `task/2.5-document-stage-2` (built on `task/2.4-record-resume-test`; merge that first)
+- **State:** done, waiting for the human's review and merge
+- **Done:** `docs/02-gpu-compute.md` (STYLE.md shape: goal, placeholders, prerequisites, 8 steps, verify, cost and safety). Every failure from this build is in it with error, cause, and fix: `python-dotenv` missing, `DeserializationError` from `torch.__version__`, the NumPy warning, `/tmp/ckpt` missing. Real output comes from the runs recorded under 2.2–2.4 and from `modal app logs` (read-only). README Stage 2 row → the doc; README status line updated. `decisions.md`: new "Stage 2 job design" section (why local entrypoint on the server, two checkpoints, `retries=0`, no default run name). 2.5 ticked in ROADMAP.
+- **Not verified:** the exact name of Modal's billing settings page, so step 1 describes it instead of naming it. `modal token new`'s output wasn't recorded, so step 3 shows the check instead.
+- **Next:** nothing.
+- **Human must:** review and merge. The doc links to `06-notifications.md`, which arrives with 6.3.
 
 ## 6.2 — Notifier
 - **Branch:** `task/6.2-notifier` (built on `task/2.4-train-template`; merge 2.2 → 2.3 → 2.4 → 6.2)
