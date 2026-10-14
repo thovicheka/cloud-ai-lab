@@ -45,3 +45,9 @@ Why each tool was picked, and what it was picked over. Updated as the build goes
 
 ## Notifications: Telegram bot
 - Free, works on any phone, easy to build. Serves as a running record of what started, finished, and failed.
+
+## Stage 2 job design
+- **The local entrypoint runs on the server, the function on Modal.** Notifications and `.env` stay on the server, so Modal only holds the R2 secret. The catch: the server side has no PyTorch, so functions return plain Python values only.
+- **Two checkpoints per run, overwritten in place** (`latest.pt` to resume, `best.pt` to keep). Storage stays flat however long a run trains. `best.pt` is uploaded first: a crash between the two uploads costs a few redone steps, never a lost best.
+- **`retries=0` on every job.** A failure stops the job and bills once; a human decides whether to run it again. The training job resumes, so a manual re-run loses at most one checkpoint interval.
+- **`--run-name` has no default.** The same name resumes; a new name starts fresh. A default would make it too easy to resume into the wrong run.

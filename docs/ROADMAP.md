@@ -88,7 +88,7 @@ Separate repo: `~/projects/ai-news` (its own GitHub repo and its own `CLAUDE.md`
   - 🧑 Run it, stop it mid-way, run again.
   - **Done when:** the second run resumes instead of starting over.
 
-- [ ] **2.5 Document Stage 2** — 🤖 → `docs/02-gpu-compute.md`
+- [x] **2.5 Document Stage 2** — 🤖 → `docs/02-gpu-compute.md`
 
 ---
 
