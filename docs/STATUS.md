@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-14: runtime worktree for the Prefect services (branch `task/4.2-runtime-worktree`, from `main`). Stopping here.** `~/projects/lab-runtime` is a git worktree of `main` with its own `.venv` (`uv sync` done). Both unit files now run from it; `hello` was re-registered from it and ran **Completed**. Nothing installed, no money spent. **Human must:** merge, then run the 9 reinstall steps under "4.2 follow-up" (`git pull`, `uv sync`, `sudo cp`, `daemon-reload`, `restart`, checks). After every later merge: `cd ~/projects/lab-runtime && git pull && uv sync && sudo systemctl restart prefect-server prefect-worker`. Open: `.env` for `lab-runtime` before 4.3.
+
 **Run of 2026-10-14: 4.1 ticked (self-hosted picked), 4.2 set up (branch `task/4.2-prefect-setup`). Stopping here; waiting for the human.** Prefect 3.8.8 added with `uv`; `deploy/prefect-server.service` (UI at http://lab:4200 over Tailscale) and `deploy/prefect-worker.service` (work pool `lab`) written, not installed. A by-hand dry run on localhost worked: the `hello` flow ran Completed; server ~245 MB, worker ~97 MB idle. **Human must:** run the 9 steps under 4.2 (`sudo cp`, `daemon-reload`, two `enable --now`, checks), then paste the output; the agent then measures memory on the real services.
 
 **Run of 2026-10-14: 4.1 written (branch `task/4.1-prefect-design`). Stopping here; waiting for the human to pick.** `docs/04-job-queue-design.md` compares a self-hosted Prefect server with Prefect Cloud's free Hobby tier (memory, cost, `sudo`, accounts, calling Modal, approval gate) and **recommends self-hosted**. Nothing installed, no account created, no money spent. **Human must:** read the doc and pick A (self-hosted) or B (Cloud Hobby); then review and merge. 4.2 starts after the pick.
@@ -490,6 +492,150 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
+
+## 4.2 follow-up — Runtime worktree for the services
+- **Branch:** `task/4.2-runtime-worktree` (from `main` at b71f207)
+- **State:** blocked on 🧑 merge + `sudo` reinstall. Agent work done.
+- **Why:** the services ran from `~/projects/cloud-ai-lab`, where agents switch branches, so flows ran whatever branch was checked out (open point from 4.2).
+- **Done:**
+  - `git worktree add ~/projects/lab-runtime main` + `uv sync` there (its own `.venv`, Prefect 3.8.8, 341 MB on disk).
+  - `deploy/prefect-server.service` and `deploy/prefect-worker.service`: `WorkingDirectory` and `ExecStart` now use `/home/thovicheka/projects/lab-runtime`. Header comments explain the worktree and the update routine. `systemd-analyze verify` passes.
+  - `hello` re-registered from `~/projects/lab-runtime`: its pull step now `cd`s into `lab-runtime`, so flow runs use the runtime code even before the services are reinstalled. One run: **Completed**.
+- **Next:** after the human reinstalls: check both services run from `lab-runtime`, then run `hello` once more.
+- **Human must:** merge `task/4.2-runtime-worktree`, then run the commands below *(on the server)*, in order. Nothing costs money.
+
+**Update routine after each merge to `main`** (keeps the services on the latest `main`):
+```bash
+cd ~/projects/lab-runtime && git pull && uv sync && sudo systemctl restart prefect-server prefect-worker
+```
+Already-registered deployments read code from `lab-runtime` at each run, so a `git pull` is enough; only a *new* flow needs registering, and it must be registered from `~/projects/lab-runtime` (e.g. `cd ~/projects/lab-runtime && uv run python flows/<flow>.py`).
+
+**Rules this adds for agents:**
+- `main` is checked out in `lab-runtime`, so `git switch main` in `~/projects/cloud-ai-lab` fails (`'main' is already used by worktree`). Start task branches with `git fetch origin && git switch -c task/<id>-<name> origin/main`.
+- Never edit, commit in, or switch branches in `~/projects/lab-runtime`. Only the update routine touches it.
+
+**Reinstall** *(on the server, after merging)*:
+
+1. Go to the runtime checkout:
+```bash
+cd ~/projects/lab-runtime
+```
+
+2. Get the merged unit files:
+```bash
+git pull
+```
+
+3. Make its `.venv` match `uv.lock`:
+```bash
+uv sync
+```
+
+4. Copy the new unit files over the installed ones:
+```bash
+sudo cp deploy/prefect-server.service deploy/prefect-worker.service /etc/systemd/system/
+```
+
+5. Make systemd read them:
+```bash
+sudo systemctl daemon-reload
+```
+
+6. Restart both services on the new paths:
+```bash
+sudo systemctl restart prefect-server prefect-worker
+```
+
+7. Check both run from `lab-runtime` (no `sudo`). Expected: `WorkingDirectory=/home/thovicheka/projects/lab-runtime` twice:
+```bash
+systemctl show prefect-server prefect-worker -p WorkingDirectory
+```
+
+8. Check both are `active (running)` and their `CGroup` lines show `lab-runtime/.venv/bin/prefect`:
+```bash
+systemctl status prefect-server prefect-worker --no-pager
+```
+
+9. Check the API answers (expected: `true`; give the server ~10 s after the restart):
+```bash
+curl -s http://127.0.0.1:4200/api/health
+```
+
+> **If you see** `status=203/EXEC` in step 8, **it means** `~/projects/lab-runtime/.venv/bin/prefect` is missing. Run step 3 again, then step 6.
+>
+> **If you see** `git pull` say `Not possible to fast-forward`, **it means** someone committed in `lab-runtime`. Stop and ask; don't reset it.
+
+<details><summary>Example from this build</summary>
+
+**1. Create the worktree**
+```console
+$ git worktree add ~/projects/lab-runtime main
+Preparing worktree (checking out 'main')
+HEAD is now at b71f207 Merge pull request #15 from thovicheka/task/4.2-prefect-setup
+$ git worktree list
+/home/thovicheka/projects/cloud-ai-lab  b71f207 [task/4.2-runtime-worktree]
+/home/thovicheka/projects/lab-runtime   b71f207 [main]
+```
+**Result:** ✅
+
+**2. `uv sync` in it**
+```console
+$ cd ~/projects/lab-runtime && uv sync
+...
+ + yarl==1.25.1
+$ .venv/bin/prefect version | head -1
+Version:              3.8.8
+$ du -sh .venv
+341M	.venv
+```
+**Result:** ✅
+
+**3. Point the units at it, then check them**
+```console
+$ sed -i 's#/home/thovicheka/projects/cloud-ai-lab#/home/thovicheka/projects/lab-runtime#g' \
+    deploy/prefect-server.service deploy/prefect-worker.service
+$ systemd-analyze verify deploy/prefect-server.service deploy/prefect-worker.service
+$ echo $?
+0
+```
+**Result:** ✅ (`verify` also checks that the new `ExecStart` binary exists)
+
+**4. The `hello` deployment still pointed at the old checkout**
+```console
+$ uv run prefect deployment inspect hello/hello
+    'pull_steps': [{'prefect.deployments.steps.set_working_directory':
+                    {'directory': '/home/thovicheka/projects/cloud-ai-lab'}}],
+```
+**Result:** ❌ **Cause:** `from_source(<local path>)` stores the path where it was registered. **Fix:** register again from the runtime checkout:
+```console
+$ cd ~/projects/lab-runtime && uv run python flows/hello.py
+│ hello/hello │ applied │
+$ uv run prefect deployment inspect hello/hello
+                'directory': '/home/thovicheka/projects/lab-runtime'
+$ uv run prefect deployment run hello/hello --watch
+Created flow run 'slick-swallow'.
+... prefect.flow-run.Completed * slick-swallow
+Flow run finished successfully in 'Completed'.
+$ uv run prefect flow-run logs e3fc86d3-...
+... Executing deployment step: set_working_directory
+... Hello from lab (ubuntu-4gb-sin-2, Python 3.12.3)
+... Finished in state Completed()
+```
+**Result:** ✅ (the worker was still the old install; only the flow's working directory changed)
+
+**5. `main` is now taken by the worktree**
+```console
+$ git switch main          # in ~/projects/cloud-ai-lab
+fatal: 'main' is already used by worktree at '/home/thovicheka/projects/lab-runtime'
+```
+**Result:** ✅ expected; agents branch from `origin/main` instead (rules above).
+</details>
+
+- **Noticed, not done (out of scope):**
+  - `lab-runtime` has no `.env` (it's git-ignored), and `lab/notify.py` reads `.env` from the checkout it runs in. Flows in 4.3 that call `notify()` or R2 will need it there. One option: `ln -s ~/projects/cloud-ai-lab/.env ~/projects/lab-runtime/.env` (one file of secrets, no copy). Your call, before 4.3.
+  - `CLAUDE.md` still says to create branches "from main"; the `git switch -c ... origin/main` rule above could go there.
+  - This branch and `task/4.2-record-install` both add to the top of this file's Summary, so the second merge will have a small conflict here (keep both paragraphs).
+  - 4.4 (`docs/04-job-queue.md`) should include the worktree and the update routine.
 
 ## 4.2 — Set up Prefect (self-hosted)
 - **Branch:** `task/4.2-prefect-setup`

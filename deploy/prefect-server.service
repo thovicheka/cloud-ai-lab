@@ -2,6 +2,11 @@
 # UI: http://lab:4200 from any Tailscale device. It listens on all interfaces; ufw allows
 # only tailscale0, so the internet can't reach it (docs/01-server-setup.md). No login on the UI.
 #
+# Runs from ~/projects/lab-runtime: a git worktree of main used only by the services, so
+# agents switching branches in ~/projects/cloud-ai-lab never change what runs.
+# After each merge to main:
+#   cd ~/projects/lab-runtime && git pull && uv sync && sudo systemctl restart prefect-server prefect-worker
+#
 # Install: see docs/STATUS.md, task 4.2 (sudo cp + systemctl enable --now).
 # Adapting: change User and the /home/thovicheka paths to yours.
 
@@ -13,14 +18,14 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=thovicheka
-WorkingDirectory=/home/thovicheka/projects/cloud-ai-lab
+WorkingDirectory=/home/thovicheka/projects/lab-runtime
 Environment=PREFECT_SERVER_API_HOST=0.0.0.0
 Environment=PREFECT_SERVER_API_PORT=4200
 # The browser on your laptop calls this; the default (127.0.0.1) would point at the laptop itself
 Environment=PREFECT_SERVER_UI_API_URL=http://lab:4200/api
 Environment=PREFECT_UI_URL=http://lab:4200
 Environment=PREFECT_SERVER_ANALYTICS_ENABLED=false
-ExecStart=/home/thovicheka/projects/cloud-ai-lab/.venv/bin/prefect server start
+ExecStart=/home/thovicheka/projects/lab-runtime/.venv/bin/prefect server start
 Restart=on-failure
 RestartSec=5
 # Test run (task 4.2): ~245 MB idle. Above MemoryHigh the kernel reclaims memory; at MemoryMax

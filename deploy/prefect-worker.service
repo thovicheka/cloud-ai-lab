@@ -2,6 +2,11 @@
 # as a subprocess on this server, with the repo's .venv Python. GPU work happens on Modal;
 # flow runs here only wait on it, so they're light.
 #
+# Runs from ~/projects/lab-runtime: a git worktree of main used only by the services, so
+# agents switching branches in ~/projects/cloud-ai-lab never change what runs.
+# After each merge to main:
+#   cd ~/projects/lab-runtime && git pull && uv sync && sudo systemctl restart prefect-server prefect-worker
+#
 # Install: see docs/STATUS.md, task 4.2 (sudo cp + systemctl enable --now).
 # Adapting: change User and the /home/thovicheka paths to yours.
 
@@ -13,12 +18,12 @@ Wants=prefect-server.service
 [Service]
 Type=simple
 User=thovicheka
-WorkingDirectory=/home/thovicheka/projects/cloud-ai-lab
+WorkingDirectory=/home/thovicheka/projects/lab-runtime
 Environment=PREFECT_API_URL=http://127.0.0.1:4200/api
 Environment=PREFECT_UI_URL=http://lab:4200
 # --limit 2: at most 2 flow runs at once, to bound memory on the 4 GB box
 # --install-policy never: never pip-install worker packages at start
-ExecStart=/home/thovicheka/projects/cloud-ai-lab/.venv/bin/prefect worker start --pool lab --type process --name lab-worker --limit 2 --install-policy never
+ExecStart=/home/thovicheka/projects/lab-runtime/.venv/bin/prefect worker start --pool lab --type process --name lab-worker --limit 2 --install-policy never
 # Also restarts after the server restarts, if the worker gave up meanwhile
 Restart=always
 RestartSec=10
