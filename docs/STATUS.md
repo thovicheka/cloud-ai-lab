@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**2.1 and 2.2 done (2026-10-14).** The human finished 2.1 (Modal account, token, spending limit **$0**: free credits only) and re-ran `hello_gpu.py` after the fix: ✅ Tesla T4, 3.84 TFLOPS, 9 s, ~$0.00. Both ticked in ROADMAP. With a $0 limit, jobs stop when the monthly free credit runs out instead of billing. Next: 2.4's resume test (see 2.4).
+
 **Fix of 2026-10-14, second (branch `task/2.4-fix-ckpt-dir`).** The human's first `modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100` failed at the first save (step 500) with `RuntimeError: Parent directory /tmp/ckpt does not exist.` Cause: `/tmp/ckpt` was only created when a checkpoint was restored, and a fresh run has none. Fixed in the template and in `RunCheckpoints.restore()`, with a new test. **Retries:** the logs show one attempt and no retry; all three jobs now set `retries=0` explicitly (Modal's default). **Human must:** merge this branch, then re-run 2.4's two commands (~$0.05). Details under 2.4.
 
 **Fix of 2026-10-14 (branch `task/2.2-fix-return-types`).** The human's first `modal run jobs/hello_gpu.py` got a Tesla T4 but failed returning the result (`DeserializationError`: `torch` not available locally). Cause: the result held `torch.__version__`, a `TorchVersion` object, not a `str`. Fixed in `hello_gpu.py`; `train_template.py` now casts its results too; `r2_hello.py` was already fine. Images now include `numpy`, and the install command is `uv tool install modal --with python-dotenv`. **Human must:** merge this branch, then re-run `modal run jobs/hello_gpu.py` (< $0.05). Details under 2.2.
@@ -14,7 +16,7 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 | Task | Agent work | Tested | Blocked on |
 |---|---|---|---|
-| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | GPU run ❌ (result type), fixed; re-run needed | a re-run after merging `task/2.2-fix-return-types` |
+| 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | GPU run ❌ (result type), fixed; re-run ✅ Tesla T4 | nothing: done |
 | 2.3 R2 from Modal | `lab/storage.py`, `jobs/r2_hello.py`, `.env.example` | 10 tests vs fake S3 ✅ | 2.1, `r2` secret, a CPU run |
 | 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | GPU run ❌ at the first save (`/tmp/ckpt` missing), fixed; checkpoint logic: 7 tests ✅ | re-run after merging `task/2.4-fix-ckpt-dir` |
 | 6.2 Notifier | `lab/notify.py`, wired into all jobs | 16 tests vs fake Telegram ✅; self-test unconfigured ✅ | 6.1 |
@@ -94,12 +96,12 @@ Permission to use Bash with command rm -rf ./does-not-exist-deny-test has been d
 
 ## 2.2 — Hello-GPU job
 - **Branch:** `task/2.2-hello-gpu`
-- **State:** blocked: the first GPU run (by the human, 2026-10-14) reached the T4 but failed returning its result; fixed on `task/2.2-fix-return-types`, waiting for review and a re-run
+- **State:** done (2026-10-14). The first GPU run failed returning its result; fixed on `task/2.2-fix-return-types` (merged); the re-run passed. Ticked in ROADMAP, with 2.1.
 - **Fix branch:** `task/2.2-fix-return-types`: plain Python types in the returned dicts (`hello_gpu.py`, `train_template.py`), `numpy==2.5.3` in the torch images, ROADMAP 2.1 install command now `uv tool install modal --with python-dotenv`.
 - **Done:** `uv` project (`pyproject.toml`, `uv.lock`, Python 3.12, `modal` 1.6.1). `jobs/hello_gpu.py`: a T4 function that prints `nvidia-smi`, times a 4096×4096 PyTorch matmul, and returns GPU name, torch/CUDA versions, ms and TFLOPS. 5-minute hard timeout. Cost estimate in the file's docstring.
-- **Next:** the human merges `task/2.2-fix-return-types` and re-runs step 2 below.
-- **Human must:**
-  1. Finish **2.1** (done: the first run reached Modal): sign up for Modal, **set a monthly spending limit**, then on the server:
+- **Next:** nothing.
+- **Human must:** nothing. The steps below are kept as a record.
+  1. ✅ **2.1** (done 2026-10-14; spending limit set to **$0**, free credits only): sign up for Modal, **set a monthly spending limit**, then on the server:
      ```bash
      uv tool install modal --with python-dotenv   # the `modal` command; --from-dotenv needs python-dotenv
      modal token new          # opens a login link; writes ~/.modal.toml
@@ -199,7 +201,22 @@ modal v1.6.1 [with: python-dotenv]
 - modal
 ```
 
-**9. Re-run on the GPU:** not done. Needs the human (`modal run` costs money).
+**9. Re-run on the GPU** (run by the human on 2026-10-14, after merging `task/2.2-fix-return-types`; result as reported by the Telegram notifier)
+```console
+$ modal run jobs/hello_gpu.py
+...
+```
+Telegram:
+```text
+✅ Finished: hello-gpu in 0m 09s, ~$0.00 on T4
+Tesla T4: 3.84 TFLOPS
+```
+**Result:** ✅ the GPU name came back (Tesla T4), the result reached the server, and the job stopped by itself. This meets 2.2's "done when".
+- **Cost:** 9 s at $0.000164/s ≈ **$0.0015**, under the < $0.05 estimate (that allowed for the first image build). Paid from free credits.
+- **Speed:** 3.84 TFLOPS on a 4096×4096 FP32 matmul, about half of a T4's ~8 TFLOPS FP32 peak. Plausible for one untuned matmul timed once.
+- **Also confirmed:** the Telegram notifier sends a real Finished message (6.1's bot works).
+
+**2.1 confirmed by the human:** Modal account created, `modal token new` succeeded, spending limit set to **$0**: jobs run on the free monthly credit only and stop when it runs out instead of billing.
 </details>
 
 ## 2.3 — R2 from Modal

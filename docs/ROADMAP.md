@@ -69,11 +69,11 @@ Separate repo: `~/projects/ai-news` (its own GitHub repo and its own `CLAUDE.md`
 
 ## Stage 2 — GPU compute (Modal)
 
-- [ ] **2.1 Modal account and limits** — 🧑
+- [x] **2.1 Modal account and limits** — 🧑
   - 🧑 Sign up with the project GitHub account; **set a monthly spending limit**; `uv tool install modal --with python-dotenv` (`modal secret create --from-dotenv` needs it); `modal token new`.
   - **Done when:** `modal token new` reports success on the server.
 
-- [ ] **2.2 Hello-GPU job** — 🤖 (🧑 runs it)
+- [x] **2.2 Hello-GPU job** — 🤖 (🧑 runs it)
   - 🤖 Write `jobs/hello_gpu.py`: a Modal function on the cheapest GPU that prints `nvidia-smi` and a tiny PyTorch matmul. Estimate the cost.
   - 🧑 Run `modal run jobs/hello_gpu.py`.
   - **Done when:** output shows the GPU name and the job stops by itself.
