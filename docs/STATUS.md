@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-14: 3.1 recorded, 3.2 written (branch `task/3.2-wandb-template`). Stopping here.** 3.1 ticked (the `wandb` secret exists). 3.2: `jobs/train_template.py` logs to W&B (project `cloud-ai-lab`, run name = `--run-name`), resumed runs continue the same W&B run, and training still works without a key. 4 new tests (37 total) ✅. Not run on Modal. **Human must:** run the two commands under 3.2 (~$0.05 from free credits), check the W&B page, then review and merge.
+
 **Run of 2026-10-14: doc gaps (branch `task/2.6-doc-gaps`). Done; stopping here.** `.claude/settings.json` now also denies `uv run modal run/deploy/serve`. The Stage 2 doc has the real spend-limit path and `modal token new` output. The Stage 6 doc has the real `--test` result and says ⏹️ Stopped is untested. The README status line says Stages 0, 1, 2, 6 are done and Stage 3 (W&B) is next. **Human must:** review and merge `task/2.6-doc-gaps`. Nothing else.
 
 **Final summary, run of 2026-10-14: record 2.3/2.4/6.1/6.2, then 2.5 and 6.3. All done; stopping here.**
@@ -481,6 +483,106 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 **Result:** ✅ exactly two objects for the run. They're the same size because the last save was also the best one.
 
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
+</details>
+
+## 3.2 — Log the template to W&B
+- **Branch:** `task/3.2-wandb-template` (from `main` after #11; also carries the 3.1 record)
+- **State:** blocked: code written and tested offline; "done when" (charts on wandb.ai) needs a real run by the human
+- **Done:**
+  - `lab/tracking.py`: `start_run(name, config, run_id=None)` starts or resumes (`resume="allow"`) a run in project `cloud-ai-lab`. No `WANDB_API_KEY` → prints `warning: WANDB_API_KEY not set; W&B logging is off for this run` and returns a disabled run that accepts every call. `run_id()` returns the id to store (a disabled run's id is random, so the checkpoint's is kept). `run_url()`.
+  - `jobs/train_template.py`: uses the `wandb` secret; image adds `wandb==0.30.0` (released 2026-09-09). Logs config (+ project, GPU, R2 checkpoint folder), `train/loss` and `train/acc` every 50 steps, and `test/loss`, `test/acc`, `best_test_loss`, and 16 test images captioned `pred N / true M` at each checkpoint. Summary gets `best_test_loss` and `checkpoints`. The W&B run id is saved in the checkpoint as `wandb_id`; old checkpoints without it still load. On a crash the W&B run is closed as failed. The result and the Telegram Finished message include the W&B URL.
+  - Train points are held until the next checkpoint and logged just before it's saved. W&B then never has steps past the last checkpoint, so a resumed run logs the redone steps (1001–1100 in the crash test) once, not twice.
+  - `tests/test_tracking.py`: 4 tests (W&B offline, nothing sent). `.env.example`: `WANDB_API_KEY`. `wandb` added as a dev dependency (tests only).
+- **Not tested:** the training loop with W&B (no torch here; CLAUDE.md forbids local training) and resuming against the real W&B server (offline mode keeps the id but doesn't upload). The first Modal run is their first real test.
+- **Next:** the human runs it (below).
+- **Human must:**
+  1. Run the crash/resume test with a new run name (from the repo root, on the server):
+     ```bash
+     modal run jobs/train_template.py --run-name wandb-1 --crash-at-step 1100
+     modal run jobs/train_template.py --run-name wandb-1
+     ```
+     **Estimated cost:** T4 at $0.000164/s (modal.com/pricing, 2026-10-13). Each run ~1–2 min including start-up; the first one also rebuilds the image for `wandb` (a few minutes of CPU, < $0.01). **~$0.05 for both**, from the free credit (spend limit $0).
+  2. Check:
+     - Both runs print the same `W&B: https://wandb.ai/.../runs/<id>` line; the second also prints `resumed ... at step 1000`.
+     - On wandb.ai, project `cloud-ai-lab` has **one** run `wandb-1`: `train/loss` and `test/loss` charts from step 50 to 3000 with no gap or double points around 1000–1100; `test/samples` images with captions; config shows `checkpoints: r2:cloud-ai-lab/mnist/checkpoints/wandb-1/`.
+     - Telegram's Finished message ends with the W&B URL.
+  3. If it passes, tick 3.2 in ROADMAP (or ask the agent to record it).
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Pick and add the W&B client**
+```console
+$ curl -s https://pypi.org/pypi/wandb/json | ...   # newest releases
+('2026-09-09T00:16:20', '0.30.0')
+('2026-08-26T23:42:52', '0.29.0')
+$ uv add --dev "wandb==0.30.0"
+ + wandb==0.30.0
+```
+**Result:** ✅ 0.30.0 is the newest and over a month old.
+
+**2. Check how wandb 0.30.0 behaves with W&B off and offline** (no key, nothing sent)
+```console
+disabled: NoopRun disabled attr True id ic4ki5a4 url None name n
+offline: id abc123 name n project p disabled False url None cfg {'a': 1}
+```
+**Result:** ✅ A disabled run accepts `log`, `summary`, `config.update`, and `finish`, but its id is random, so it must not be saved in the checkpoint (hence `run_id()`). An offline run keeps the id it's given.
+
+**3. First test run**
+```console
+$ uv run pytest -q tests/test_tracking.py
+...
+wandb.errors.errors.CommError: user is not logged in
+3 failed, 1 passed in 6.04s
+$ uv run pytest -q tests/test_tracking.py -k "not no_key"
+3 passed, 1 deselected in 1.88s
+```
+**Result:** ❌
+- **Error:** `CommError: user is not logged in` in the offline tests, but only after the no-key test ran.
+- **Cause:** wandb keeps one setup per process that caches the environment from its first `init`. The no-key test's environment (no key, no `WANDB_MODE`) stuck for the later tests. Each one works on its own. A Modal job starts one run per process, so jobs aren't affected.
+- **Fix:** an autouse fixture that calls `wandb.teardown()` after each test.
+```console
+$ uv run pytest -q
+.....................................                                    [100%]
+37 passed in 6.79s
+$ uvx ruff@0.14.0 check --select E,F,W,B --line-length 100 lab jobs tests
+All checks passed!
+$ uv run python -c "import runpy; m = runpy.run_path('jobs/train_template.py'); print('app:', m['app'].name)"
+app: train-template
+```
+**Result:** ✅
+
+**4. Check the resume tests catch a broken resume** (temporarily pass `id=None` instead of `run_id`)
+```console
+$ uv run pytest -q tests/test_tracking.py
+FAILED tests/test_tracking.py::test_resume_reuses_the_saved_id - AssertionErr...
+FAILED tests/test_tracking.py::test_wandb_id_survives_the_checkpoint_round_trip
+2 failed, 2 passed in 2.36s
+$ # fix restored
+$ uv run pytest -q
+37 passed in 6.45s
+```
+**Result:** ✅
+
+**5. Run on Modal with W&B:** not done. Needs the human (`modal run` costs money).
+</details>
+
+## 3.1 — W&B account
+- **Branch:** recorded on `task/3.2-wandb-template` (3.1 is a 🧑 task; no code)
+- **State:** done (2026-10-14, by the human). Ticked in ROADMAP.
+- **Done:** W&B account; `WANDB_API_KEY` in `.env` on the server; Modal secret `wandb` created.
+- **Next:** 3.2.
+- **Human must:** nothing.
+
+<details><summary>Steps and output from this build</summary>
+
+**1. Check the Modal secret exists** (read-only; `.env` itself isn't read, per CLAUDE.md)
+```console
+$ uv run modal secret list
+┃ Name  ┃ Created at           ┃ Created by   ┃ Last used at         ┃
+│ wandb │ 2026-10-14 07:15 UTC │ <workspace>  │ -                    │
+│ r2    │ 2026-10-14 04:45 UTC │ <workspace>  │ 2026-10-14 05:07 UTC │
+```
+**Result:** ✅ The `.env` key is as reported by the human.
 </details>
 
 ## 2.6 — Doc gaps (not a ROADMAP task; asked for directly)
