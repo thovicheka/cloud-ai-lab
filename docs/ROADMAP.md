@@ -106,7 +106,7 @@ Separate repo: `~/projects/ai-news` (its own GitHub repo and its own `CLAUDE.md`
 
 - [x] **6.1 Bot token** — 🧑 Create a bot with @BotFather; put the token and your chat ID in `.env`.
 - [x] **6.2 Notifier** — 🤖 `lab/notify.py`: `notify(text)` sends a message; call it on job start / finish / failure in the templates (with duration and estimated cost). **Done when:** a test job sends all three messages.
-- [ ] **6.3 Document** — 🤖 → `docs/06-notifications.md`
+- [x] **6.3 Document** — 🤖 → `docs/06-notifications.md`
 
 ---
 
