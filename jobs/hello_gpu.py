@@ -23,7 +23,8 @@ image = modal.Image.debian_slim(python_version="3.12").uv_pip_install(
 
 
 # timeout: a hard stop, so a hung job can never bill for more than 5 minutes.
-@app.function(image=image, gpu=GPU, timeout=300)
+# retries=0 (Modal's default, made explicit): a failure is never re-run on its own.
+@app.function(image=image, gpu=GPU, timeout=300, retries=0)
 def hello(n: int = 4096) -> dict:
     import subprocess
     import time

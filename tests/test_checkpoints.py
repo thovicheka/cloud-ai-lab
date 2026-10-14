@@ -31,6 +31,17 @@ def test_restore_returns_none_for_new_run(r2, tmp_path):
     assert RunCheckpoints("p", "new").restore(tmp_path / "x.pt") is None
 
 
+def test_fresh_run_can_save_to_a_missing_folder(r2, tmp_path):
+    # like /tmp/ckpt/latest.pt in a new Modal container: the folder doesn't exist yet
+    path = tmp_path / "ckpt" / "latest.pt"
+    c = RunCheckpoints("p", "fresh")
+    assert c.restore(path) is None
+    path.write_text("step 500")  # torch.save fails here if the folder is missing
+    c.save(path, is_best=True)
+    resumed = RunCheckpoints("p", "fresh").restore(tmp_path / "other" / "x.pt")
+    assert resumed.read_text() == "step 500"
+
+
 def test_resume_gets_latest_and_best_only_moves_on_improvement(r2, tmp_path):
     c = RunCheckpoints("p", "r1")
     save(c, tmp_path, "step 100", is_best=True)

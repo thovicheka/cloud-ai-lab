@@ -21,7 +21,8 @@ image = (
 )
 
 
-@app.function(image=image, secrets=[modal.Secret.from_name("r2")], timeout=120)
+# retries=0 (Modal's default, made explicit): a failure is never re-run on its own.
+@app.function(image=image, secrets=[modal.Secret.from_name("r2")], timeout=120, retries=0)
 def write_hello() -> list[str]:
     import socket
     import tempfile

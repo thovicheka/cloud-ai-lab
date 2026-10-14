@@ -38,7 +38,12 @@ class RunCheckpoints:
         return metric < best if self.mode == "min" else metric > best
 
     def restore(self, local_path: str | Path) -> Path | None:
-        """Download latest.pt to `local_path`; None if this run has no checkpoint yet."""
+        """Download latest.pt to `local_path`; None if this run has no checkpoint yet.
+
+        Either way, `local_path`'s folder exists afterwards, so the first save of a
+        fresh run can write there.
+        """
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
         if not storage.exists(self.latest_key):
             return None
         return storage.download(self.latest_key, local_path)

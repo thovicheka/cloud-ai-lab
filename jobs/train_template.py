@@ -63,7 +63,16 @@ def make_net():
 
 
 # timeout: a hard stop so a hung job can't bill for long. Raise it for real training.
-@app.function(image=image, gpu=GPU, secrets=[modal.Secret.from_name("r2")], timeout=30 * 60)
+# retries=0 (Modal's default, made explicit): a failed run stops and bills once; run the
+# same command again to resume. Modal may still re-run an input lost to its own
+# infrastructure (e.g. a preempted GPU); that retry prints "resumed ... at step N".
+@app.function(
+    image=image,
+    gpu=GPU,
+    secrets=[modal.Secret.from_name("r2")],
+    timeout=30 * 60,
+    retries=0,
+)
 def train(
     run_name: str,
     steps: int = 3000,
@@ -73,6 +82,7 @@ def train(
     seed: int = 0,
     crash_at_step: int = 0,
 ) -> dict:
+    import os
     import time
 
     import torch
@@ -90,6 +100,7 @@ def train(
 
     ckpts = RunCheckpoints(PROJECT, run_name, mode="min")
     path = "/tmp/ckpt/latest.pt"
+    os.makedirs(os.path.dirname(path), exist_ok=True)  # a fresh run has no /tmp/ckpt yet
     step, best = 0, None
     if ckpts.restore(path):
         # cpu: set_rng_state needs CPU tensors; load_state_dict moves the rest to the GPU

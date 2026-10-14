@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Fix of 2026-10-14, second (branch `task/2.4-fix-ckpt-dir`).** The human's first `modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100` failed at the first save (step 500) with `RuntimeError: Parent directory /tmp/ckpt does not exist.` Cause: `/tmp/ckpt` was only created when a checkpoint was restored, and a fresh run has none. Fixed in the template and in `RunCheckpoints.restore()`, with a new test. **Retries:** the logs show one attempt and no retry; all three jobs now set `retries=0` explicitly (Modal's default). **Human must:** merge this branch, then re-run 2.4's two commands (~$0.05). Details under 2.4.
+
 **Fix of 2026-10-14 (branch `task/2.2-fix-return-types`).** The human's first `modal run jobs/hello_gpu.py` got a Tesla T4 but failed returning the result (`DeserializationError`: `torch` not available locally). Cause: the result held `torch.__version__`, a `TorchVersion` object, not a `str`. Fixed in `hello_gpu.py`; `train_template.py` now casts its results too; `r2_hello.py` was already fine. Images now include `numpy`, and the install command is `uv tool install modal --with python-dotenv`. **Human must:** merge this branch, then re-run `modal run jobs/hello_gpu.py` (< $0.05). Details under 2.2.
 
 **Run of 2026-10-13: tasks 2.2, 2.3, 2.4, 6.2.** All agent work is finished. Each task is blocked only on a human step: Modal account (2.1), the R2 secret, a Telegram bot (6.1), and running the paid jobs. No money was spent and no Modal job was run.
@@ -14,7 +16,7 @@ Live progress for agent work. The agent updates this after every step and pushes
 |---|---|---|---|
 | 2.2 Hello-GPU | `jobs/hello_gpu.py`, uv project | GPU run ❌ (result type), fixed; re-run needed | a re-run after merging `task/2.2-fix-return-types` |
 | 2.3 R2 from Modal | `lab/storage.py`, `jobs/r2_hello.py`, `.env.example` | 10 tests vs fake S3 ✅ | 2.1, `r2` secret, a CPU run |
-| 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | checkpoint logic: 6 tests ✅; training loop: not run (no local training) | 2.1, `r2` secret, 2 GPU runs |
+| 2.4 Training template | `lab/checkpoints.py`, `jobs/train_template.py` | GPU run ❌ at the first save (`/tmp/ckpt` missing), fixed; checkpoint logic: 7 tests ✅ | re-run after merging `task/2.4-fix-ckpt-dir` |
 | 6.2 Notifier | `lab/notify.py`, wired into all jobs | 16 tests vs fake Telegram ✅; self-test unconfigured ✅ | 6.1 |
 
 **What the human does, in order** (details under each task below; run everything on the server from `~/projects/cloud-ai-lab`):
@@ -274,10 +276,11 @@ $ uv run modal secret create --help
 
 ## 2.4 — Checkpointed training template
 - **Branch:** `task/2.4-train-template` (built on `task/2.3-modal-r2`; merge 2.2 → 2.3 → 2.4)
-- **State:** blocked: code written, checkpoint logic tested offline; the GPU run needs 2.1 + the `r2` secret (2.3)
+- **State:** blocked: the first GPU run (by the human, 2026-10-14) trained to step 500, then failed at the first save; fixed on `task/2.4-fix-ckpt-dir`, waiting for review and a re-run
+- **Fix branch:** `task/2.4-fix-ckpt-dir`: the template creates `/tmp/ckpt` before restoring or saving; `RunCheckpoints.restore()` now always creates its target folder, so a copied template can't hit this; new test `test_fresh_run_can_save_to_a_missing_folder`; `retries=0` set explicitly on all three jobs.
 - **Done:** `lab/checkpoints.py` (`RunCheckpoints`: `latest.pt` + `best.pt` per run, overwritten in place, so only 2 objects ever; `restore()` for resuming). `jobs/train_template.py`: small CNN on MNIST (T4); evaluates and checkpoints every 500 steps; resumes weights, optimizer, step, best loss, RNG and data position from `latest.pt`; `--crash-at-step N` simulates a lost GPU. 6 new tests in `tests/test_checkpoints.py` (16 total).
 - **Not tested:** the training loop itself. CLAUDE.md forbids local training and torch isn't installed here, so the first Modal run is its first real test.
-- **Next:** the human runs the resume test (below).
+- **Next:** the human merges `task/2.4-fix-ckpt-dir` and runs the resume test (below).
 - **Human must:**
   1. Finish 2.1 and 2.3's secret.
   2. Crash on purpose, then resume (from the repo root):
@@ -321,7 +324,65 @@ All checks passed!
 - `best.pt` is uploaded before `latest.pt`. A crash between the two then leaves `latest` one save behind (resume redoes ≤500 steps) rather than losing a new best.
 - `--run-name` has no default on purpose: rerunning with the same name resumes, and a new name starts fresh. A finished run rerun with its name does nothing and returns its result.
 
-**5. GPU run and resume test:** not done. Needs 2.1, the `r2` secret, and the human.
+**5. First GPU run** (run by the human on 2026-10-14; container log fetched afterwards with `modal app logs`, download progress lines removed)
+```console
+$ modal run jobs/train_template.py --run-name try-1 --crash-at-step 1100
+...
+$ uv run modal app logs ap-IIGT***
+...
+no checkpoint at mnist/checkpoints/try-1/latest.pt; starting from step 0
+Traceback (most recent call last):
+  ...
+  File "/root/train_template.py", line 141, in train
+    torch.save(
+  ...
+RuntimeError: Parent directory /tmp/ckpt does not exist.
+Stopping app - uncaught exception raised locally: RuntimeError('Parent directory /tmp/ckpt does not exist.').
+```
+**Result:** ❌ the training loop ran (MNIST downloaded, 500 steps trained), then the first `torch.save` failed. Nothing reached R2.
+- **Error:** `RuntimeError: Parent directory /tmp/ckpt does not exist.` (`train_template.py` line 141, `torch.save`)
+- **Cause:** `/tmp/ckpt` was only created by `storage.download()` during a restore. A fresh run has nothing to restore, so the folder never existed. `torch.save` doesn't create folders.
+- **Fix:**
+  - `jobs/train_template.py`: `os.makedirs(os.path.dirname(path), exist_ok=True)` right after choosing the path, before any restore or save.
+  - `lab/checkpoints.py`: `restore()` creates `local_path`'s folder even when there's no checkpoint, so any job that copies the restore-then-save pattern works on a fresh run.
+  - Checked the rest: `storage.download()` already creates parent folders (`mkdir(parents=True)`), and `test_upload_download_round_trip` already downloads into a missing `nested/` folder. `storage.upload()` only reads. `load_data()` lets torchvision create `/tmp/data`. No other changes.
+
+**6. Did Modal retry the failed run?**
+```console
+$ uv run modal app list
+...
+  ap-IIGT***   train-template   stopped   0   2026-10-14 04:57 UTC   2026-10-14 04:57 UTC
+...
+$ uv run modal app logs ap-IIGT*** > train_logs.txt
+$ # count attempts: each attempt prints "no checkpoint ..." or "resumed ..." once
+'no checkpoint' count: 1 | Traceback count: 1 | 'retr' lines: []
+```
+**Result:** ✅ one attempt, no retry, billed once.
+- **Retries configured:** 0 on all three jobs. None of them set `retries`, and Modal's default is no retries (`retries=None` → no retry policy, `modal/_utils/function_utils.py`).
+- **"No more retries left"** isn't a message Modal 1.6.1 prints. It's a code comment in `modal/_functions.py` (line 514), on the path that turns the failure into the local exception. It doesn't appear in this run's logs.
+- **Change:** `retries=0` now written out on each `@app.function`, with a comment, so the setting is visible and a copied template doesn't change it silently.
+- **What can still retry:** Modal re-runs an input that its own infrastructure lost (e.g. a preempted GPU); that isn't configurable. For the template this isn't silent and doesn't redo much: the retry prints `resumed ... at step N` and loses at most `--ckpt-every` steps. Each attempt is still capped by `timeout`, and the Telegram cost (6.2) is measured on the server's wall clock, so it includes any retry.
+
+**7. Test a fresh run with no folder, and check the test catches the bug**
+```console
+$ uv run pytest -q
+.................................                                        [100%]
+33 passed in 4.17s
+$ sed -i '/Path(local_path).parent.mkdir/d' lab/checkpoints.py   # temporarily undo the fix
+$ uv run pytest -q tests/test_checkpoints.py
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/pytest-of-<user>/.../ckpt/latest.pt'
+1 failed, 6 passed in 0.89s
+$ # fix restored
+$ uvx ruff@0.14.0 check --select E,F,W,B --line-length 100 lab jobs tests
+All checks passed!
+$ uv run python -c "from modal._utils.function_utils import _parse_retries; print(_parse_retries(0))"
+backoff_coefficient: 1
+initial_delay_ms: 1000
+max_delay_ms: 60000
+```
+**Result:** ✅ The new test fails without the fix and passes with it. `retries=0` is valid; the policy's `retries` field is 0, so it isn't printed. All three jobs still load.
+
+**8. Re-run on the GPU and resume test:** not done. Needs the human (`modal run` costs money).
 </details>
 
 ## 6.2 — Notifier
