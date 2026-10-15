@@ -4,6 +4,8 @@ Live progress for agent work. The agent updates this after every step and pushes
 
 ## Summary
 
+**Run of 2026-10-15: 4.3 test run recorded (not passed yet), 4.4 written (branch `task/4.4-document-stage-4`, from `origin/main` at 7a610fb). Stopping here.** The server shows **no approved `hello-gpu` run yet**. `supportive-vulture` was resumed at 04:25 UTC, but the answer the UI stored is `{"approve":false}`. So the flow declined it: **Cancelled**, 🚫 on Telegram, nothing ran on Modal, $0. `sophisticated-elk` (2026-10-14) was the same. The gate's pause and decline paths are proven on the real server; the approved path isn't. So **4.3 and 4.4 stay unticked**. `docs/04-job-queue.md` is written (all 11 steps, the gate, the limits) with real output, except the approved-run example. The README row and status line say Stage 4 is almost done. No money spent; the agent only read the Prefect API. **Human must:** start one more `hello-gpu` run and make sure **approve** is ticked (a checkmark, not just the field) before **Submit** (~$0.01, at most $0.05). If it's still Cancelled, see "If approve was ticked" under 4.3. Then paste the result; the agent records it and ticks 4.3 and 4.4.
+
 **Run of 2026-10-14: 4.3 written (branch `task/4.3-flows`, from `origin/main` at cb6d770). Stopping here.** Two Prefect flows wrap the Modal jobs: `hello-gpu` and `train-mnist`. Each estimates the cost, sends `⏸️ Awaiting approval, ~$X` on Telegram with a link to the run, then pauses for up to 24 h. Modal is called only after you tick `approve` in the UI; a decline or a timeout ends the run without touching a GPU. Paid steps are never retried. `.claude/settings.json` now stops agents from resuming paused runs or starting deployment runs. 11 new tests (48 total) ✅ against a throwaway Prefect server, with Modal and Telegram faked. Nothing deployed, no Modal call, no money spent. **Human must:** review and merge, then run the 7 steps under 4.3 (register both flows, run `hello-gpu` once, approve it: ~$0.01, at most $0.05).
 
 **Run of 2026-10-14: runtime worktree for the Prefect services (branch `task/4.2-runtime-worktree`, from `main`). Stopping here.** `~/projects/lab-runtime` is a git worktree of `main` with its own `.venv` (`uv sync` done). Both unit files now run from it; `hello` was re-registered from it and ran **Completed**. Nothing installed, no money spent. **Human must:** merge, then run the 9 reinstall steps under "4.2 follow-up" (`git pull`, `uv sync`, `sudo cp`, `daemon-reload`, `restart`, checks). After every later merge: `cd ~/projects/lab-runtime && git pull && uv sync && sudo systemctl restart prefect-server prefect-worker`. Open: `.env` for `lab-runtime` before 4.3.
@@ -495,9 +497,23 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
 **Cost:** both runs ran on free credits (spending limit $0). 2000 steps of training took 23.2 s; with start-up each run took about a minute.
 </details>
 
+## 4.4 — Document Stage 4
+- **Branch:** `task/4.4-document-stage-4` (from `origin/main` at 7a610fb)
+- **State:** blocked on 🧑: one approved `hello-gpu` run (see 4.3). Doc written.
+- **Done:**
+  - `docs/04-job-queue.md` (STYLE.md format) covers: how it fits together; 11 steps (add Prefect, CLI profile, `lab-runtime` worktree, `.env` symlink, install and check both systemd services, register deployments, a free run, a paid run through the gate, parameters / `--start-in` / `--start-at` / schedules, the update routine after merges); a table of the gate's outcomes; limits (paused runs hold worker slots, the deny rules and what they can't stop, no UI login, Modal's $0 limit as the hard stop); verify. Every step has an "Example from this build" block taken from 4.2, the 4.2 follow-up, 4.3, and today's reads of the server.
+  - `--start-in`, `--start-at`, and `deployment schedule create --cron --timezone` are checked against Prefect 3.8.8's CLI source but **not run** (the doc says so). Running them would start runs, and the deny rules block agents from that anyway.
+  - README: Stage 4 row links the doc (🚧); status line updated.
+- **Not done:** ROADMAP 4.3 and 4.4 are left unticked, and the doc says 🚧, until an approved run completes. Then: fill in the "Approved run" example in step 9, switch the status to ✅, tick both.
+- **Human must:** see 4.3.
+- **Noticed, not done (out of scope):**
+  - Run history in `~/.prefect/prefect.db` grows without limit. The doc doesn't cover a cleanup yet; worth a step once there's real volume.
+  - `CLAUDE.md` still says to create branches "from main"; since 4.2's worktree, that has to be `origin/main` (the doc's step 3 says so).
+  - The 4.3 brief's "Telegram showed ▶️ Started / ✅ Finished" doesn't match the server, which has no approved run. Possibly the brief was written before the run.
+
 ## 4.3 — Wrap the Modal jobs in Prefect flows
 - **Branch:** `task/4.3-flows` (from `origin/main` at cb6d770)
-- **State:** blocked on 🧑 merge + one approved test run. Agent work done.
+- **State:** merged (#18); blocked on 🧑: one *approved* test run. Pause and decline work on the real server.
 - **Done:**
   - `flows/approval.py`: the gate. `ask_approval()` sends `⏸️ Awaiting approval, ~$X: <job> on T4`, the worst case at the job's Modal timeout, and the UI link (`prefect.runtime.flow_run.ui_url`, so `http://lab:4200/...` on the worker). Then it calls `pause_flow_run(wait_for_input=Approval, timeout=24 h)`. The `Approval` form has `approve` (unticked by default, so pressing Resume without ticking it declines) and `note`.
   - `flows/hello_gpu.py` (flow `hello-gpu`) and `flows/train.py` (flow `train-mnist`, parameters `run_name`, `steps`, `ckpt_every`). After approval, a task runs the existing Modal function with `app.run()` + `.remote()` inside `notify_job()`, so you get ▶️ Started, then ✅ Finished or ❌ Failed, as with `modal run`. These are ephemeral apps, as proposed in the design doc §4, so no `modal deploy` is needed.
@@ -508,8 +524,54 @@ $ rclone ls r2:cloud-ai-lab/mnist/checkpoints/try-1/
     - `train-mnist`: 90 s + 15 ms/step. 3000 steps → **~$0.02**, at most **$0.30** (30 min timeout).
   - `.claude/settings.json`: denies the flow-run resume and deployment run commands. Covered forms: bare `prefect`, `uv run prefect`, and the `.venv/bin/prefect` paths. Glob rules also catch the Python API names (`resume_flow_run`, `run_deployment`) and the REST resume / create-run paths.
   - `tests/test_flows.py`: 11 tests on a throwaway Prefect server (`prefect_test_harness`). Modal is faked, and any real `modal.App.run` fails the test. Telegram is faked. The pause is the real one, and the tests resume it through the API as the UI does. The fake Telegram fixture moved from `test_notify.py` to `conftest.py`.
-- **Next:** after your test run, tick 4.3 in ROADMAP and record the run here. Then 4.4 (docs).
-- **Human must:** review and merge `task/4.3-flows`, then run the steps below *(on the server)*. Steps 1–5 are free; step 6 asks for approval; step 7 is the only one that costs money.
+- **Next:** after an approved run completes, record it and tick 4.3 (and 4.4).
+- **Human test runs (recorded 2026-10-15; read back from the Prefect API):**
+  - ✅ Steps 1–5: `deployment ls` shows `hello/hello`, `hello-gpu/hello-gpu`, `train-mnist/train-mnist`, all on pool `lab`.
+  - ✅ Pause: both `hello-gpu` runs paused about 1 s after starting, with the approval request in their logs. You reported that Telegram's `⏸️ Awaiting approval` arrived.
+  - ❌ Approve: neither run was approved. The UI stored `{"approve":false,"note":""}` for both, so the flow declined both: **Cancelled**, `Declined in the UI; nothing ran on Modal`, $0. The 4.3 brief said `supportive-vulture` Completed with ▶️ Started / ✅ Finished on Telegram; the server shows otherwise.
+  - Side note: each decline logs a `CancelledRun` traceback after the Cancelled state. It's harmless: Prefect raises the Cancelled state that the flow returns.
+
+<details><summary>Example from this build: the two hello-gpu runs</summary>
+
+```console
+$ uv run prefect flow-run ls --limit 5
+│ 1dc4dad0-... │ hello     │ energetic-dormouse │ COMPLETED │ 5 minutes ago  │
+│ b0065954-... │ hello-gpu │ supportive-vulture │ CANCELLED │ a few seconds… │
+│ ac67ec1d-... │ hello-gpu │ sophisticated-elk  │ CANCELLED │ 10 hours ago   │
+```
+State history (`read_flow_run_states`), UTC:
+```console
+supportive-vulture  04:09:29 Scheduled · 04:09:39 Running · 04:09:40 Paused · 04:25:20 Running · 04:25:22 Cancelled "Declined in the UI; nothing ran on Modal"
+sophisticated-elk   17:34:32 Scheduled · 17:34:42 Running · 17:34:42 Paused · 17:36:05 Running · 17:36:13 Cancelled "Declined in the UI; nothing ran on Modal"
+```
+Logs (`supportive-vulture`):
+```console
+04:09:40 ⏸️ Awaiting approval, ~$0.01: hello-gpu on T4 | At most $0.05 if it hits its 5 min timeout. | http://lab:4200/flow-runs/flow-run/b0065954-... | Resume → tick approve → Submit. ...
+04:09:40 Pausing flow, execution will continue when this flow run is resumed.
+04:25:21 Resuming flow run execution!
+04:25:22 Declined
+04:25:23 Finished in state Cancelled('Declined in the UI; nothing ran on Modal')
+04:25:23 Engine execution exited with unexpected exception | Traceback ... prefect.exceptions.CancelledRun: Declined in the UI; nothing ran on Modal
+```
+What the UI sent back (`filter_flow_run_input`), the same for both runs:
+```console
+paused-1-schema    {"properties":{"approve":{"default":false,"title":"Approve","type":"boolean"},"note":{...}},"title":"Approval",...}
+paused-1-response  {"approve":false,"note":""}
+```
+**Result:** ✅ pause and decline; ❌ approve not exercised yet. **Cause:** the UI sent `approve: false`. Either the box wasn't ticked, or the UI didn't pass the tick on; the data can't tell which. **Fix:** run again and tick approve (below).
+</details>
+
+**Retry (🧑, on the server, then in the browser):**
+
+1. Start a run (it only pauses; nothing is spent):
+```bash
+cd ~/projects/lab-runtime && uv run prefect deployment run hello-gpu/hello-gpu
+```
+2. *(Laptop or phone, over Tailscale)* open the Telegram link → **Resume** → click **Approve** so it shows as ticked/on → **Submit**. **Cost: ~$0.01, at most $0.05** (Modal free credit, limit $0). Expected: ▶️ Started, then `✅ Finished: hello-gpu in ...` on Telegram; the run shows **Completed**.
+
+> **If approve was ticked and the run is still Cancelled**, the UI isn't sending the checkbox. That's a 4.3 bug, not a doc fix. Tell the agent; it'll check the stored answer and propose a fix (e.g. make `approve` a required field with no default, so the form can't be submitted without choosing). Nothing is spent either way.
+
+- **Human must:** the "Retry" above (one approved `hello-gpu` run). Merge and steps 1–6 below are done; kept for reference.
 
 1. Go to the runtime checkout:
 ```bash
