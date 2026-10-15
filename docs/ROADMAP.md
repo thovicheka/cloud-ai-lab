@@ -114,8 +114,8 @@ Separate repo: `~/projects/ai-news` (its own GitHub repo and its own `CLAUDE.md`
 
 - [x] **4.1 Design** — 🤖 Propose: self-hosted Prefect server vs Prefect Cloud free tier, memory use on a 4 GB box, how flows call Modal. 🧑 Pick one. → **Picked: self-hosted** ([design](04-job-queue-design.md))
 - [x] **4.2 Set up** — 🤖 config + service files; 🧑 install (`sudo`).
-- [ ] **4.3 Wrap jobs** — 🤖 Prefect flows around the Modal jobs with states (queued / running / completed / failed / awaiting approval), retries, and `notify()` calls. Paid GPU flows require 🧑 approval before running.
-- [ ] **4.4 Document** — 🤖 → `docs/04-job-queue.md`
+- [x] **4.3 Wrap jobs** — 🤖 Prefect flows around the Modal jobs with states (queued / running / completed / failed / awaiting approval), retries, and `notify()` calls. Paid GPU flows require 🧑 approval before running.
+- [x] **4.4 Document** — 🤖 → `docs/04-job-queue.md`
 
 ---
 

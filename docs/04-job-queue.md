@@ -2,7 +2,7 @@
 
 **What you'll have working by the end:** a self-hosted Prefect server and worker on the lab server, running as `systemd` services, with a web UI at `http://lab:4200` over Tailscale. GPU jobs run as Prefect flows with clear states (Scheduled, Running, Paused, Completed, Failed, Cancelled). Any flow that costs money pauses first and asks for your approval on Telegram, with a cost estimate and a link. Nothing reaches Modal until you approve it in the UI.
 
-**Status:** 🚧 almost done. 4.1 and 4.2 are done, and this doc is task 4.4. In 4.3, the services, deployments, and the approval gate's pause and decline all work on the real server. Still missing: one *approved* paid run (step 9).
+**Status:** ✅ done (tasks 4.1–4.4). The services, the deployments, and the approval gate's pause, decline, and approve paths all work on the real server; one approved `hello-gpu` run reached a T4 on Modal (step 9).
 
 **How to read this guide:** instructions use placeholders like `<username>`; replace them with your own values. After key steps, an **Example from this build** block shows the real commands and output from the author's setup:
 
@@ -160,7 +160,7 @@ ln -s ~/projects/cloud-ai-lab/.env ~/projects/lab-runtime/.env
 $ readlink ~/projects/lab-runtime/.env
 /home/<username>/projects/cloud-ai-lab/.env
 ```
-**Result:** ✅ (approval requests for both runs in step 9 reached Telegram)
+**Result:** ✅ (every run in step 9 sent its Telegram messages: approval request, 🚫 Declined, ▶️ Started, ✅ Finished)
 </details>
 
 ### 5. Install the two services
@@ -305,11 +305,13 @@ At most $0.05 if it hits its 5 min timeout.
 http://lab:4200/flow-runs/flow-run/<id>
 Resume → tick approve → Submit. No answer in 24 h = not run.
 ```
-Then *(on the laptop or phone, over Tailscale)*: open the link → **Resume** → tick **approve** → **Submit**. The run continues to Modal and Telegram says ▶️ Started, then ✅ Finished (or ❌ Failed). To say no, press Resume and submit **without** ticking approve: the run ends **Cancelled** and Telegram says 🚫 Declined.
+Then *(on the laptop or phone, over Tailscale)*: open the link → **Resume** → tick **approve** → **Submit**. In the new Prefect UI, **Resume** is in the run's **⋮** menu (top right); **Switch to V1 UI** shows it as a button instead. The run continues to Modal and Telegram says ▶️ Started, then ✅ Finished (or ❌ Failed). To say no, press Resume and submit **without** ticking approve: the run ends **Cancelled** and Telegram says 🚫 Declined.
 
 **Cost:** `hello-gpu` ~$0.01, at most $0.05. `train-mnist` with 3000 steps ~$0.02, at most $0.30 (its 30 min timeout). T4 at $0.000164/s; check Modal's current price.
 
 > **If you see** no Telegram message, **it means** the flow couldn't read the bot token. Check `ls -l ~/projects/lab-runtime/.env` (step 4). The run still pauses; find it under **Runs** in the UI.
+>
+> **If you see** no **Resume** button on a paused run, **it means** you're on the new UI, which hides it. Open the **⋮** menu, or use **Switch to V1 UI**.
 >
 > **If you see** the run go **Failed** right after approval with `ModuleNotFoundError: No module named 'jobs'`, **it means** the Modal container didn't get the `jobs/` folder. Check that `jobs/` is a package next to `flows/` in `<runtime>`.
 >
@@ -317,32 +319,43 @@ Then *(on the laptop or phone, over Tailscale)*: open the link → **Resume** �
 
 <details><summary>Example from this build</summary>
 
-Two runs, both read back from the server (state history, logs, and the answer the UI stored):
+Three `hello-gpu` runs, read back from the server (state history and logs, UTC) and checked on Telegram by the human.
 
-**`sophisticated-elk`** (2026-10-14, UTC):
-```console
-17:34:32 Scheduled
-17:34:42 Running
-17:34:42 Paused      ⏸️ Awaiting approval, ~$0.01: hello-gpu on T4 | At most $0.05 if it hits its 5 min timeout. | http://lab:4200/flow-runs/flow-run/ac67ec1d-...
-17:36:05 Running     Resuming flow run execution!
-17:36:13 Declined
-17:36:13 Cancelled   Declined in the UI; nothing ran on Modal
-answer stored by the UI (paused-1-response): {"approve":false,"note":""}
-```
-
-**`supportive-vulture`** (2026-10-15, UTC):
+**Decline: `supportive-vulture`** (2026-10-15). Resumed **without** ticking approve:
 ```console
 04:09:29 Scheduled
 04:09:39 Running
-04:09:40 Paused      ⏸️ Awaiting approval, ~$0.01: hello-gpu on T4 | ... | http://lab:4200/flow-runs/flow-run/b0065954-...
+04:09:40 Paused      ⏸️ Awaiting approval, ~$0.01: hello-gpu on T4 | At most $0.05 if it hits its 5 min timeout. | http://lab:4200/flow-runs/flow-run/b0065954-...
 04:25:20 Running     Resuming flow run execution!
 04:25:22 Declined
 04:25:22 Cancelled   Declined in the UI; nothing ran on Modal
 answer stored by the UI (paused-1-response): {"approve":false,"note":""}
 ```
-**Result:** ✅ for the gate: each run paused until answered, Telegram got the approval request, and a `false` answer never called Modal ($0). ❌ for the approved path: `supportive-vulture` was meant to be approved, but the UI sent `approve: false`, so it was declined. **Cause:** not known yet. Either the box wasn't ticked, or the UI didn't send the tick. **Next:** run it again and tick **approve**. If the run is still declined, the stored answer shows whether the tick reached the server. Both runs also logged a `CancelledRun` traceback after the Cancelled state; it's harmless (see the note above).
+Telegram: `⏸️ Awaiting approval`, then `🚫 Declined: hello-gpu. Nothing ran on Modal; $0 spent.` No Modal task on the run's timeline. **Result:** ✅ declined, $0.
 
-**Approved run:** not recorded yet.
+**Approve: `psychedelic-velociraptor`** (2026-10-15). Resumed **with** approve ticked:
+```console
+$ uv run prefect flow-run logs e673c7d7-...
+04:31:48 Beginning flow run 'psychedelic-velociraptor' for flow 'hello-gpu'
+04:31:59 ⏸️ Awaiting approval, ~$0.01: hello-gpu on T4 | At most $0.05 if it hits its 5 min timeout. | http://lab:4200/flow-runs/flow-run/e673c7d7-... | Resume → tick approve → Submit. No answer in 24 h = not run.
+04:31:59 Pausing flow, execution will continue when this flow run is resumed.
+04:34:49 Resuming flow run execution!
+04:34:49 Approved
+04:35:04       gpu: Tesla T4
+04:35:04     torch: 2.14.1+cu130
+04:35:04      cuda: 13.0
+04:35:04    matmul: 4096x4096
+04:35:04        ms: 32.11
+04:35:04    tflops: 4.28
+04:35:05 Finished in state Completed()
+```
+State history: `04:31:35 Scheduled · 04:31:45 Pending · 04:31:48 Running · 04:31:59 Paused · 04:34:39 Running · 04:35:04 Completed`. Telegram: `▶️ Started: hello-gpu (T4)`, then `✅ Finished: hello-gpu in 0m 14s, ~$0.00 on T4` / `Tesla T4: 4.28 TFLOPS`. **Result:** ✅ Modal was called only after approval; ~15 s on a T4, ~$0.00 of free credit.
+
+**Older paused run: `sophisticated-elk`** (2026-10-14). Resumed without approve as well, so it ended `CANCELLED` (`Declined in the UI; nothing ran on Modal`), $0.
+
+> **Lesson from this build:** the first attempt at an approved run was really a decline: the UI stored `{"approve":false}`. The new UI hides **Resume** in the ⋮ menu, so the form is easy to submit without the box ticked. Read the stored answer (`paused-1-response`) when a run is Cancelled and you expected it to run.
+
+Both declined runs also logged a `CancelledRun` traceback after the Cancelled state; it's harmless (see the note above).
 </details>
 
 ### 10. Run with parameters, later, or on a schedule
@@ -425,23 +438,24 @@ curl -s http://127.0.0.1:4200/api/health
 uv run prefect deployment ls
 uv run prefect flow-run ls --limit 5
 ```
-Expected: `active` twice, `true`, the three deployments from step 7 on pool `lab`, and your recent runs with their states (for example `COMPLETED` for `hello`, `CANCELLED` for a declined `hello-gpu`).
+Expected: `active` twice, `true`, the three deployments from step 7 on pool `lab`, and your recent runs with their states (`COMPLETED` for `hello` and an approved `hello-gpu`, `CANCELLED` for a declined one). Set `COLUMNS=200` if the table is truncated.
 
 <details><summary>Example from this build</summary>
 
-2026-10-15, 04:25 UTC:
+2026-10-15, after the approved run:
 ```console
 $ systemctl is-active prefect-server prefect-worker
 active
 active
 $ curl -s http://127.0.0.1:4200/api/health
 true
-$ uv run prefect flow-run ls --limit 5
-│ 1dc4dad0-... │ hello     │ energetic-dormouse │ COMPLETED │ 5 minutes ago  │
-│ b0065954-... │ hello-gpu │ supportive-vulture │ CANCELLED │ a few seconds… │
-│ ac67ec1d-... │ hello-gpu │ sophisticated-elk  │ CANCELLED │ 10 hours ago   │
-│ e3fc86d3-... │ hello     │ slick-swallow      │ COMPLETED │ 11 hours ago   │
-│ bffd5c93-... │ hello     │ mutant-trogon      │ COMPLETED │ 11 hours ago   │
+$ COLUMNS=200 uv run prefect flow-run ls --limit 6
+│ e673c7d7-... │ hello-gpu │ psychedelic-velociraptor │ COMPLETED │ 2 minutes ago  │
+│ 1dc4dad0-... │ hello     │ energetic-dormouse       │ COMPLETED │ 1 minute ago   │
+│ b0065954-... │ hello-gpu │ supportive-vulture       │ CANCELLED │ 11 minutes ago │
+│ ac67ec1d-... │ hello-gpu │ sophisticated-elk        │ CANCELLED │ 11 hours ago   │
+│ e3fc86d3-... │ hello     │ slick-swallow            │ COMPLETED │ 11 hours ago   │
+│ bffd5c93-... │ hello     │ mutant-trogon            │ COMPLETED │ 11 hours ago   │
 ```
-(columns widened from the CLI's truncated output). The deployments are listed in step 7. **Result:** ✅ the services, the queue, and the gate's decline path all work. An approved `hello-gpu` run (`COMPLETED`) is still to come.
+(`COLUMNS=200` stops the CLI from truncating the columns.) The deployments are listed in step 7. **Result:** ✅ the services, the queue, the free flow, and the gate's approve and decline paths all work on the real server. The 24 h timeout is covered by `tests/test_flows.py` only.
 </details>

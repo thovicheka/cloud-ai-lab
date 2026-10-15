@@ -4,7 +4,7 @@ A self-hosted cloud lab for ML and data science: always-on server, AI agents, on
 
 Your laptop becomes just a window. Code, data, agents, and training jobs live in the cloud, so work keeps running when the laptop is closed, and you can check in from any device.
 
-> **Status:** being built in public. ✅ Stages 0, 1, 2, 3, and 6 complete: an agent on the server; a locked-down always-on server (Tailscale-only, key-only SSH, firewall) with dev tools, R2 storage, and jobs that survive a closed laptop; GPU jobs on Modal that checkpoint to R2 and resume after a crash; Telegram messages when jobs start, finish, or fail; every training run tracked on W&B (charts, sample predictions, checkpoint path), staying one run across a crash and resume. Stage 4 almost done: a self-hosted Prefect job queue whose paid GPU flows pause for approval on Telegram before anything reaches Modal; one approved test run is still to go. Docs are written as each stage is completed, including the mistakes along the way.
+> **Status:** being built in public. ✅ Stages 0, 1, 2, 3, 4, and 6 complete: an agent on the server; a locked-down always-on server (Tailscale-only, key-only SSH, firewall) with dev tools, R2 storage, and jobs that survive a closed laptop; GPU jobs on Modal that checkpoint to R2 and resume after a crash; Telegram messages when jobs start, finish, or fail; every training run tracked on W&B (charts, sample predictions, checkpoint path), staying one run across a crash and resume; a self-hosted Prefect job queue whose paid GPU flows pause for approval on Telegram before anything reaches Modal. Stage 5 (agents) is next. Docs are written as each stage is completed, including the mistakes along the way.
 
 ---
 
@@ -53,7 +53,7 @@ Design rules:
 | 1. Server, access, dev tools, storage ✅ | [docs/01-server-setup.md](docs/01-server-setup.md) |
 | 2. GPU compute (Modal) ✅ | [docs/02-gpu-compute.md](docs/02-gpu-compute.md) |
 | 3. Experiment tracking (W&B) ✅ | [docs/03-experiment-tracking.md](docs/03-experiment-tracking.md) |
-| 4. Job queue (Prefect) 🚧 | [docs/04-job-queue.md](docs/04-job-queue.md) |
+| 4. Job queue (Prefect) ✅ | [docs/04-job-queue.md](docs/04-job-queue.md) |
 | 5. Agents | coming |
 | 6. Notifications (Telegram) ✅ | [docs/06-notifications.md](docs/06-notifications.md) |
 | **Roadmap: task list for humans and agents** | [docs/ROADMAP.md](docs/ROADMAP.md) |
