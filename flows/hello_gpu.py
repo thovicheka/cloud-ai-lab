@@ -1,8 +1,8 @@
 """hello-gpu as a Prefect flow: ask for approval, then run jobs/hello_gpu.py's function on a Modal T4.
 
 States: Scheduled → Running → Paused (⏸️ on Telegram, with cost and link) → you Resume in the UI:
-  - approve ticked: Running → ▶️ Started → ✅ Finished (Completed) or ❌ Failed (Failed)
-  - approve unticked: 🚫 Declined (Cancelled); nothing runs on Modal
+  - approve switch on: Running → ▶️ Started → ✅ Finished (Completed) or ❌ Failed (Failed)
+  - approve switch off: 🚫 Declined (Cancelled); nothing runs on Modal
   - no answer in 24 h: ⌛ (Failed); nothing runs on Modal
 
 Register (on the server, from ~/projects/lab-runtime after the merge, with prefect-server running):

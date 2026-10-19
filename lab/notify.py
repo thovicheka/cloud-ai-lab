@@ -95,7 +95,8 @@ def notify(text: str) -> bool:
 
 
 def estimate_cost(seconds: float, gpu: str | None) -> float | None:
-    """GPU cost of `seconds` on `gpu` (CPU and memory, a few % extra, are left out)."""
+    """GPU cost of `seconds` on `gpu`. CPU and memory are left out: a few % for a small job, over
+    50% for one that reserves several cores and GBs (a T4 with 4 cores + 16 GiB: about +54%)."""
     if gpu is None:
         return None
     return seconds * GPU_PRICE_PER_SECOND[gpu.split(":")[0].rstrip("!+")] * _gpu_count(gpu)
