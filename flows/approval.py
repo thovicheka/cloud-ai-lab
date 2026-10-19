@@ -7,8 +7,8 @@ Every flow that calls a paid Modal function does this first:
     run_on_modal(...)   # a task with retries=0
 
 ask_approval() sends "⏸️ Awaiting approval, ~$X" with a link to the flow run, then pauses the
-run (state Paused). In the UI: open the link → Resume → tick `approve` → Submit. Unticked
-means declined. No answer in 24 h → the run fails (FlowPauseTimeout); nothing ran on Modal.
+run (state Paused). In the UI: open the link → Resume → turn the `approve` switch on → Submit.
+Left off means declined. No answer in 24 h → the run fails (FlowPauseTimeout); nothing ran on Modal.
 
 The gate is enforced by the flow, not by Modal: anything with access to the Prefect API can
 resume a run. Agents are denied the resume commands in .claude/settings.json; Modal's $0
@@ -28,7 +28,7 @@ POLL_INTERVAL = 10  # seconds between checks for a Resume while paused
 
 
 class Approval(RunInput):
-    approve: bool = False  # unticked by default: a Resume without ticking it declines
+    approve: bool = False  # a switch, off by default: a Resume without turning it on declines
     note: str = ""
 
 
@@ -56,7 +56,7 @@ def approval_message(
         f"⏸️ Awaiting approval, ~${expected:.2f}: {job} on {gpu}\n"
         f"At most ${worst:.2f} if it hits its {max_seconds / 60:g} min timeout.\n"
         f"{link}\n"
-        f"Resume → tick approve → Submit. No answer in {APPROVAL_TIMEOUT / 3600:g} h = not run."
+        f"Resume → turn the approve switch ON → Submit. No answer in {APPROVAL_TIMEOUT / 3600:g} h = not run."
     )
 
 

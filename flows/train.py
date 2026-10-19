@@ -2,8 +2,8 @@
 `train` on a Modal T4. Same R2 checkpoints and W&B run as `modal run jobs/train_template.py`.
 
 States: Scheduled → Running → Paused (⏸️ on Telegram, with cost and link) → you Resume in the UI:
-  - approve ticked: Running → ▶️ Started → ✅ Finished (Completed) or ❌ Failed (Failed)
-  - approve unticked: 🚫 Declined (Cancelled); nothing runs on Modal
+  - approve switch on: Running → ▶️ Started → ✅ Finished (Completed) or ❌ Failed (Failed)
+  - approve switch off: 🚫 Declined (Cancelled); nothing runs on Modal
   - no answer in 24 h: ⌛ (Failed); nothing runs on Modal
 A failed run is never retried automatically. Run it again with the same run_name to resume
 from its last R2 checkpoint (it asks for approval again).
